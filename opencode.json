@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "rules": [
+    "After making any changes, immediately commit and push to git with a descriptive message."
+  ]
+}

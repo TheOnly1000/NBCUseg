@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Segmentor Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--primary:#003ec7;--bg:#f8fafc;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--text2:#64748b;--error:#dc2626;--success:#16a34a}
+*,*::before,*::after{box-sizing:border-box}
+body{font-family:'Hanken Grotesk',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;-webkit-font-smoothing:antialiased}
+.ms{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;user-select:none;font-family:'Material Symbols Outlined';vertical-align:middle}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:900px;margin:0 auto}
+.inp{border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;width:100%;font-size:14px;outline:none;transition:border .2s}
+.inp:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(0,62,199,0.12)}
+.btn{background:var(--primary);color:#fff;border:none;padding:10px 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.9}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:8px}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-outline:hover{background:var(--bg)}
+.btn-danger{background:var(--error)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px}
+tr:hover{background:#f1f5f9}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-admin{background:#dc2626;color:#fff}
+.badge-editor{background:#003ec7;color:#fff}
+.badge-viewer{background:#64748b;color:#fff}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.au{animation:fadeUp .3s ease both}
+#toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.tk{display:flex;align-items:center;gap:10px;background:#fff;padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.15);border:1px solid var(--border);pointer-events:auto;animation:toastIn .3s both}
+@keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="login-screen" style="display:flex;align-items:center;justify-content:center;min-height:90vh">
+  <div class="card" style="max-width:380px;text-align:center">
+    <span class="ms" style="font-size:48px;color:var(--primary);margin-bottom:12px">admin_panel_settings</span>
+    <h1 style="font-size:22px;font-weight:800;margin:0 0 4px">Admin Panel</h1>
+    <p style="font-size:13px;color:var(--text2);margin:0 0 24px">Local role management console</p>
+    <input id="admin-pass" type="password" class="inp" placeholder="Enter admin password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')authAdmin()">
+    <button onclick="authAdmin()" class="btn" style="width:100%">Authenticate</button>
+    <p style="font-size:11px;color:var(--text2);margin-top:16px">Only accessible from authorized devices.</p>
+  </div>
+</div>
+
+<div id="main-screen" style="display:none">
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h1 style="font-size:24px;font-weight:800;margin:0">Admin Panel</h1>
+        <p style="font-size:13px;color:var(--text2);margin:4px 0 0">Manage users &amp; roles</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="loadAuditLogs()" class="btn btn-outline btn-sm flex items-center gap-1"><span class="ms" style="font-size:16px">history</span> Audit Log</button>
+        <button onclick="logoutAdmin()" class="btn btn-sm btn-danger flex items-center gap-1"><span class="ms" style="font-size:16px">logout</span> Logout</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h2 style="font-size:16px;font-weight:700;margin:0 0 4px">User Role Management</h2>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 16px">Assign roles: <strong>Admin</strong>, <strong>Editor</strong> (full access), <strong>Viewer</strong> (read-only)</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>User</th><th>Email</th><th>Role</th><th>Action</th></tr>
+          </thead>
+          <tbody id="user-table-body"></tbody>
+        </table>
+      </div>
+      <div id="no-users" style="display:none;text-align:center;padding:24px;color:var(--text2)">No users found.</div>
+    </div>
+
+    <div class="card" id="audit-section" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 style="font-size:16px;font-weight:700;margin:0">Audit Log</h2>
+        <button onclick="closeAuditLogs()" class="btn btn-outline btn-sm">Close</button>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 12px">Last 7 days of activity. Auto-purged after retention period.</p>
+      <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+        <table>
+          <thead>
+            <tr><th>Time</th><th>User</th><th>Action</th><th>Asset</th><th>Details</th></tr>
+          </thead>
+          <tbody id="audit-table-body"></tbody>
+        </table>
+      </div>
+      <div id="no-audit" style="display:none;text-align:center;padding:24px;color:var(--text2)">No audit logs yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://fzbktwyurskhvtwkklzu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDIwODEsImV4cCI6MjA5Nzg3ODA4MX0.MEZzsQ7BHs_Jh2wozEkJVml43T599w0PkG9GH8aAyUM";
+const ADMIN_PASS = "6969";
+
+var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function st(msg, type) {
+  var t = document.getElementById("toast");
+  var e = document.createElement("div"); e.className = "tk";
+  e.innerHTML = '<span class="ms" style="font-size:18px;flex-shrink:0">' + (type === "e" ? "error" : type === "s" ? "check_circle" : "info") + '</span><span>' + msg + '</span>';
+  t.appendChild(e);
+  setTimeout(function(){e.style.opacity="0";e.style.transform="translateX(14px)";setTimeout(function(){e.remove()},300)},3000);
+}
+
+function authAdmin() {
+  var p = document.getElementById("admin-pass").value;
+  if (p === ADMIN_PASS) {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("main-screen").style.display = "block";
+    loadUsers();
+    st("Authenticated as Admin", "s");
+  } else {
+    st("Invalid password", "e");
+  }
+}
+
+function logoutAdmin() {
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("main-screen").style.display = "none";
+  document.getElementById("admin-pass").value = "";
+}
+
+async function loadUsers() {
+  var { data: profiles, error } = await sb.from("profiles").select("*");
+  if (error) { st("Error loading users: " + error.message, "e"); return; }
+  var tbody = document.getElementById("user-table-body");
+  var noUsers = document.getElementById("no-users");
+  tbody.innerHTML = "";
+  if (!profiles || profiles.length === 0) { noUsers.style.display = "block"; return; }
+  noUsers.style.display = "none";
+  profiles.forEach(function(p, i) {
+    var role = p.role || "viewer";
+    var badgeClass = role === "admin" ? "badge-admin" : role === "editor" ? "badge-editor" : "badge-viewer";
+    var tr = document.createElement("tr");
+    tr.className = "au";
+    tr.style.animationDelay = (i * 40) + "ms";
+    tr.innerHTML = '<td><strong>' + (p.name || "—") + '</strong></td>' +
+      '<td style="font-family:monospace;font-size:12px">' + (p.email || "—") + '</td>' +
+      '<td><span class="badge ' + badgeClass + '">' + role.toUpperCase() + '</span></td>' +
+      '<td><select class="inp" style="width:auto;padding:4px 8px;font-size:12px" onchange="updateRole(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\',this.value)">' +
+      '<option value="viewer"' + (role === "viewer" ? " selected" : "") + '>Viewer</option>' +
+      '<option value="editor"' + (role === "editor" ? " selected" : "") + '>Editor</option>' +
+      '<option value="admin"' + (role === "admin" ? " selected" : "") + '>Admin</option>' +
+      '</select></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+async function updateRole(uid, email, name, newRole) {
+  var { error } = await sb.from("profiles").update({ role: newRole }).eq("id", uid);
+  if (error) { st("Error updating role: " + error.message, "e"); return; }
+  st("Updated " + (name || email) + " → " + newRole.toUpperCase(), "s");
+  // Log to audit
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local",
+    user_name: "Admin",
+    action: "role_change",
+    asset_id: "",
+    details: "Changed " + (name || email) + " role to " + newRole
+  });
+  loadUsers();
+}
+
+async function loadAuditLogs() {
+  var section = document.getElementById("audit-section");
+  section.style.display = "block";
+  var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  var { data: logs, error } = await sb.from("audit_logs")
+    .select("*")
+    .gte("created_at", sevenDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) { st("Error loading audit logs: " + error.message, "e"); return; }
+  var tbody = document.getElementById("audit-table-body");
+  var noAudit = document.getElementById("no-audit");
+  tbody.innerHTML = "";
+  if (!logs || logs.length === 0) { noAudit.style.display = "block"; return; }
+  noAudit.style.display = "none";
+  logs.forEach(function(l) {
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td style="font-family:monospace;font-size:11px">' + new Date(l.created_at).toLocaleString() + '</td>' +
+      '<td>' + (l.user_name || l.user_email) + '</td>' +
+      '<td><span class="badge" style="background:#e2e8f0;color:#0f172a">' + l.action.replace(/_/g, " ") + '</span></td>' +
+      '<td style="font-family:monospace;font-size:12px">' + (l.asset_id || "—") + '</td>' +
+      '<td style="font-size:12px;color:var(--text2)">' + (l.details || "") + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function closeAuditLogs() {
+  document.getElementById("audit-section").style.display = "none";
+}
+</script>
+</body>
+</html>
