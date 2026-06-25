@@ -219,7 +219,7 @@ input:disabled { opacity: 0.6; cursor: not-allowed; }
 .tk{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--c-scl);border:1px solid var(--c-ov);border-radius:12px;margin-bottom:6px;box-shadow:0 4px 12px rgba(0,0,0,.08);transition:opacity .3s}
 .tk-btn{background:var(--c-pf);color:var(--c-primary);border:none;padding:4px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 .mw.on{display:flex!important}
-.vp.on{display:block!important}
+.vp.on{display:block!important;z-index:5}
 .vp.enter{animation:fadeUp .3s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 .ac{background:var(--c-card-bg);border:1.5px solid var(--c-sc);border-radius:18px;overflow:hidden;cursor:pointer;transition:transform .2s,border-color .2s}
@@ -6183,6 +6183,9 @@ document.addEventListener("keydown",function(e){
 var _origNav=nav;
 nav=function(viewId){
   if(viewId==="tickets"){
+    closeSidebar();
+    document.getElementById("screen-login")?.classList.remove("on");
+    document.getElementById("app-main")?.classList.add("on");
     document.querySelectorAll(".vp").forEach(function(v){v.classList.remove("on","enter")});
     document.querySelectorAll(".nav-btn,.bn").forEach(function(b){b.classList.remove("on")});
     var tv=document.getElementById("vp-tickets");if(tv){tv.classList.add("on","enter")}
