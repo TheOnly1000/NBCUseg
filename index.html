@@ -5776,8 +5776,9 @@ var ticketsCache=[],ticketIdCounter=1000;
 function generateTicketId(){ticketIdCounter++;return "TCK-"+ticketIdCounter}
 
 function loadTickets(){
+  ticketsCache=ticketsCache||[];
   return sb.from("tickets").select("*").order("created_at",{ascending:false}).then(function(r){
-    if(r.error){console.warn("Tickets load error:",r.error);return}
+    if(r.error){console.warn("Tickets load error:",r.error);renderTicketsView();return}
     ticketsCache=r.data||[];
     var maxNum=0;
     (r.data||[]).forEach(function(t){
@@ -5790,13 +5791,13 @@ function loadTickets(){
         ticketsCache.forEach(function(t){t._comments=cr.data.filter(function(c){return c.ticket_id===t.id})})
       }
       renderTicketsView();
-      // Refresh FSO comments if a fullscreen asset is open
       if(currentFullscreenAssetId)loadFsComments(currentFullscreenAssetId)
-    })
-  })
+    }).catch(function(e){console.warn("ticket_comments query error:",e);renderTicketsView()})
+  }).catch(function(e){console.warn("Tickets load error:",e);showToast("Failed to load tickets","e");renderTicketsView()})
 }
 
 function renderTicketsView(){
+  if(!Array.isArray(ticketsCache))ticketsCache=[];
   var q=(document.getElementById("vp-ticket-search")?.value||"").toLowerCase();
   var f=document.getElementById("vp-ticket-filter")?.value||"all";
   var ue=(currentUser.email||"").toLowerCase();
