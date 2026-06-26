@@ -196,4 +196,9 @@ function subscribeRealTime() {
             refreshCurrentView();
         })
         .subscribe(function(status) { if (status !== "SUBSCRIBED") console.warn("schedule-rt channel status:", status); });
+    if(window.schedulePollTimer)clearInterval(window.schedulePollTimer);
+    window.schedulePollTimer=setInterval(function(){
+        var sv=document.getElementById("vp-schedule");
+        if(sv&&sv.classList.contains("on"))loadScheduleFromDb().then(function(){renderSchedule()});
+    },30000);
 }

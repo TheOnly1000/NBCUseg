@@ -21,7 +21,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
 </head>
 <body>
 <div id="pbar"></div><div id="tr"></div>
-<div id="gl" class="fixed top-4 right-4 z-[9998] bg-primary text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg hidden items-center gap-2"><span class="ms spin text-[15px]">sync</span> Syncing&hellip;</div>
+<div id="gl" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:9997;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center"><div class="bl"><div class="bl-inner"><div></div><div></div><div></div><div></div></div></div></div>
 <datalist id="sug"></datalist>
 
 <div id="welcome-overlay" class="fixed inset-0 z-[800] flex items-end justify-center" style="background:var(--c-bg);display:none;transform:translateY(100%)">
@@ -108,7 +108,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
       <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Billing</span><kbd class="kbd">Ctrl 7</kbd></div>
       <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Undo Delete</span><kbd class="kbd">Ctrl Z</kbd></div>
       <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Undo / Redo</span><kbd class="kbd">Ctrl Z / Shift Z</kbd></div>
-      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Dark Mode</span><kbd class="kbd">Ctrl D</kbd></div>
+      <!-- Dark Mode shortcut removed -->
       <div class="flex justify-between items-center py-2"><span class="text-secondary">Shortcuts Help</span><kbd class="kbd">?</kbd></div>
     </div>
   </div>
@@ -133,7 +133,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
         <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Thumbnail deduplication &mdash; shared across same-title shows</span></li>
         <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Schedule launch now respects segment count from sheet</span></li>
         <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Real-time asset locking &amp; handover with notifications</span></li>
-        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Custom accent colors, dark mode, and high-contrast themes</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Custom accent colors</span></li>
         <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Enhanced editor with glitch tracking &amp; MCR log formats</span></li>
       </ul>
       <div class="mt-4 text-[10px] text-secondary font-mono">Latest patch &middot; June 2026</div>
@@ -165,21 +165,8 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
           <input type="color" id="theme-accent-picker" class="w-8 h-8 rounded-full cursor-pointer border-2 border-ov p-0" value="#003ec7" onchange="setAccentColor(this.value)">
         </div>
       </div>
-      <div class="flex items-center justify-between py-3 px-4 rounded-xl bg-sclo">
-        <label class="text-sm font-bold text-on-surface cursor-pointer" for="theme-mode-toggle">Dark Mode</label>
-        <label class="flex items-center cursor-pointer">
-          <input type="checkbox" id="theme-mode-toggle" class="hidden" onchange="toggleDarkMode()">
-          <div class="relative"><div class="block w-12 h-7 bg-sc border border-ov/50 rounded-full sm" id="theme-mode-bg"></div><div class="absolute left-1 top-1 w-5 h-5 bg-scl rounded-full transition-transform duration-300 flex items-center justify-center shadow-md border border-ov/20" id="theme-mode-dot"><span class="ms text-[12px] text-secondary" id="theme-mode-icon">light_mode</span></div></div>
-        </label>
-      </div>
-      <div>
-        <label class="lbl mb-2">Dark Background Style</label>
-        <select id="theme-dark-style" class="sel w-full" onchange="setDarkStyle(this.value)">
-          <option value="default">Default (Deep navy/black)</option>
-          <option value="warmer">Warmer (Dark brown tint)</option>
-          <option value="cooler">Cooler (Dark blue tint)</option>
-          <option value="contrast">High Contrast (True black/white)</option>
-        </select>
+      <div class="py-3 px-4 rounded-xl bg-sclo text-sm text-secondary leading-relaxed" id="theme-message">
+        Hey <span class="font-bold text-on-surface" id="theme-username">User</span>, Dark mode was there but, I think white looks more professional. You can change the accent colors though.
       </div>
     </div>
   </div>

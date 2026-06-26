@@ -2,13 +2,10 @@
 var editorTimerData = {assetId: null, startTime: null, elapsed: {}, tickInterval: null};
 function startEditorTimer(assetId) {
   if (!assetId) return;
-  // Load existing elapsed time from localStorage for this asset
-  var saved = localStorage.getItem("seg_timer_" + assetId);
-  var existing = saved ? JSON.parse(saved) : {};
   editorTimerData = {
     assetId: assetId,
     startTime: Date.now(),
-    elapsed: existing.elapsed || {},
+    elapsed: {},
     tickInterval: null
   };
   // Also try to load working time from server metadata (handover continuity)
@@ -36,23 +33,16 @@ function startEditorTimer(assetId) {
   if (editorTimerData.tickInterval) clearInterval(editorTimerData.tickInterval);
   editorTimerData.tickInterval = setInterval(function(){updateTimerDisplay()}, 1000);
   updateTimerDisplay();
-  // Auto-save to localStorage every 30s
-  if (window._timerSaveInterval) clearInterval(window._timerSaveInterval);
-  window._timerSaveInterval = setInterval(function(){saveTimerToLocal()}, 30000);
 }
 function stopEditorTimer() {
   if (editorTimerData.tickInterval) { clearInterval(editorTimerData.tickInterval); editorTimerData.tickInterval = null; }
-  if (window._timerSaveInterval) { clearInterval(window._timerSaveInterval); window._timerSaveInterval = null; }
   updateElapsedTime();
-  saveTimerToLocal();
   var el = document.getElementById("editor-timer");
   if (el) el.classList.add("hidden");
 }
 function pauseEditorTimer() {
   if (editorTimerData.tickInterval) { clearInterval(editorTimerData.tickInterval); editorTimerData.tickInterval = null; }
-  if (window._timerSaveInterval) { clearInterval(window._timerSaveInterval); window._timerSaveInterval = null; }
   updateElapsedTime();
-  saveTimerToLocal();
 }
 function resumeEditorTimer() {
   if (editorTimerData.assetId) {
@@ -69,11 +59,6 @@ function updateElapsedTime() {
     if (!editorTimerData.elapsed[curEmail]) editorTimerData.elapsed[curEmail] = 0;
     editorTimerData.elapsed[curEmail] += added;
     editorTimerData.startTime = Date.now();
-  }
-}
-function saveTimerToLocal() {
-  if (editorTimerData.assetId) {
-    localStorage.setItem("seg_timer_" + editorTimerData.assetId, JSON.stringify({elapsed: editorTimerData.elapsed, updatedAt: Date.now()}));
   }
 }
 function updateTimerDisplay() {

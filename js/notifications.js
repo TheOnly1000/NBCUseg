@@ -133,19 +133,26 @@ function handleNotifClick(notifId, assetId, ticketId, notifType) {
     sb.from("notification_reads").insert({notification_id: Number(notifId), user_email: currentUser.email||""}).then(function(){});
     sb.from("notifications").update({read: true}).eq("id", notifId).then(function(){});
     // Redirect based on content type
-    if (assetId) {
+    if (assetId && assetId !== "null" && assetId !== "undefined") {
+        nav("editor");
         loadToEditor(assetId);
-        if (notifType === "handover_request") {
-            setTimeout(function(){openHandoverModal()}, 500);
+        if (notifType === "handover_request" || notifType === "handover_given") {
+            setTimeout(function(){openHandoverModal()}, 800);
         }
-    } else if (ticketId) {
+    } else if (ticketId && ticketId !== "null" && ticketId !== "undefined") {
         nav("tickets");
-        var targetTicket = ticketsCache.find(function(t){return String(t.id)===String(ticketId)});
-        if (targetTicket) {
-            openTicketDetail(ticketId);
+        var numId = Number(ticketId);
+        var found = ticketsCache.find(function(t){return Number(t.id)===numId});
+        if (found) {
+            setTimeout(function(){openTicketDetail(ticketId)}, 300);
         } else {
-            loadTickets().then(function(){openTicketDetail(ticketId)});
+            loadTickets().then(function(){
+                setTimeout(function(){openTicketDetail(ticketId)}, 300);
+            });
         }
+    } else {
+        // Unknown type — navigate to dashboard
+        nav("dashboard");
     }
 }
 

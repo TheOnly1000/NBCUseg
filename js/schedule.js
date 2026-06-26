@@ -18,7 +18,12 @@ function gvizCellValue(cell) {
 
 function scheduleDbRead(dateFilter) {
     return sb.from("schedule_entries").select("*").eq("schedule_date", dateFilter).then(function(result) {
-        if (result.error) return [];
+        if (result.error) {
+            if (result.error.message && result.error.message.indexOf("does not exist") >= 0) {
+                console.warn("schedule_entries table not found - run the SQL setup");
+            }
+            return [];
+        }
         return result.data || [];
     });
 }
@@ -46,13 +51,23 @@ function scheduleDbWrite(dateFilter) {
             segment_count: e.segment_count || ""
         };
     });
-    // Delete existing rows for this date, then insert fresh — no constraint dependency
-    return sb.from("schedule_entries").delete().eq("schedule_date", dateFilter).then(function(delResult) {
-        if (delResult.error) throw new Error("Schedule delete failed: " + delResult.error.message);
-        return sb.from("schedule_entries").insert(payload);
+    // Get existing IDs for this date, then delete by PK and insert fresh
+    return sb.from("schedule_entries").select("id").eq("schedule_date", dateFilter).then(function(idResult) {
+        if (idResult.error) throw new Error("Read existing IDs failed: " + idResult.error.message);
+        var existingIds = (idResult.data || []).map(function(r){return r.id});
+        var delPromise = existingIds.length ? sb.from("schedule_entries").delete().in("id", existingIds) : Promise.resolve({error:null});
+        return delPromise.then(function(delResult) {
+            if (delResult && delResult.error) throw new Error("Delete by ID failed: " + delResult.error.message);
+            return sb.from("schedule_entries").insert(payload);
+        });
     }).then(function(insResult) {
         if (insResult.error) throw new Error("Schedule insert failed: " + insResult.error.message);
         return insResult;
+    }).catch(function(err) {
+        if (err && err.message && err.message.indexOf("policy") >= 0) {
+            showToast("DB permission error. Run DELETE RLS policy SQL.", "e", 8000);
+        }
+        throw err;
     });
 }
 
@@ -142,7 +157,8 @@ function fetchScheduleFromSheet(dateFilter) {
 function syncScheduleFromSheet() {
     var dateFilter = document.getElementById("schedule-date-filter")?.value || "";
     if (!dateFilter) { showToast("Please select a date first.", "e"); return; }
-    showToast("Fetching schedule for " + dateFilter + "...", "i");
+    showGlobalLoader(true);
+    var hideLoader = function(){try{showGlobalLoader(false)}catch(e){}};
     // Capture current assignments for this date before overwriting
     var oldAssignments = {};
     scheduleEntries.forEach(function(e) {
@@ -159,7 +175,7 @@ function syncScheduleFromSheet() {
         });
         // Now fetch fresh from sheet
         fetchScheduleFromSheet(dateFilter).then(function(entries) {
-            if (entries.length === 0) { showToast("No entries found for " + dateFilter + ".", "e"); return; }
+            if (entries.length === 0) { hideLoader(); showToast("No entries found for " + dateFilter + ".", "e"); return; }
             // Merge sheet data with preserved assignments
             entries.forEach(function(e) {
                 var old = oldAssignments[e.row_index];
@@ -173,19 +189,23 @@ function syncScheduleFromSheet() {
             scheduleEntries = scheduleEntries.filter(function(e) { return e.schedule_date !== dateFilter; });
             entries.forEach(function(e) { scheduleEntries.push(e); });
             scheduleEntries.sort(function(a, b) {
-                return (a.schedule_date + " " + a.start_time_edt).localeCompare(b.schedule_date + " " + b.start_time_edt);
+                return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
             });
-            // Write to DB so all users see it
+            // Always delete old data and write fresh (full replace)
             scheduleDbWrite(dateFilter).then(function() {
+                return loadScheduleFromDb();
+            }).then(function() {
+                hideLoader();
                 renderSchedule(); renderDash();
                 showToast("Synced " + entries.length + " entries for " + dateFilter + ".", "s");
             }).catch(function(err) {
+                hideLoader();
                 renderSchedule(); renderDash();
                 showToast("Schedule loaded but DB save failed: " + (err && err.message ? err.message : err), "e", 8000);
                 console.error("scheduleDbWrite error:", err);
             });
         }).catch(function(err) {
-            showToast("Sheet fetch failed: " + err, "e");
+            hideLoader(); showToast("Sheet fetch failed: " + err, "e");
         });
     });
 }
@@ -222,7 +242,7 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
     scheduleEntries = scheduleEntries.filter(function(e) { return e.schedule_date !== dateFilter; });
     entries.forEach(function(en) { scheduleEntries.push(en); });
     scheduleEntries.sort(function(a, b) {
-        return (a.schedule_date + " " + a.start_time_edt).localeCompare(b.schedule_date + " " + b.start_time_edt);
+        return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
     });
     var dbPayload = entries.map(function(e) {
         return {
@@ -244,6 +264,8 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
         };
     });
     scheduleDbWrite(dateFilter).then(function() {
+        return loadScheduleFromDb();
+    }).then(function() {
         renderSchedule();
         renderDash();
         showToast("Synced " + entries.length + " entries for " + dateFilter + ".", "s");
@@ -256,6 +278,7 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
 }
 
 function loadScheduleFromDb() {
+    showGlobalLoader(true);
     return sb.from("schedule_entries").select("*").order("row_index", { ascending: true }).then(function(result) {
         if (result.error) { console.warn("Load schedule error:", result.error); return; }
         if (result.data && result.data.length > 0) {
@@ -288,10 +311,11 @@ function loadScheduleFromDb() {
                 };
             });
             scheduleEntries.sort(function(a, b) {
-                return (a.schedule_date + " " + a.start_time_edt).localeCompare(b.schedule_date + " " + b.start_time_edt);
+                return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
             });
         }
-    });
+        showGlobalLoader(false);
+    }).catch(function(){showGlobalLoader(false)});
 }
 
 
@@ -317,98 +341,6 @@ function renderSchedule() {
         return;
     }
     renderScheduleTable(filtered);
-}
-
-function renderScheduleTable(entries) {
-    var tbody = document.getElementById("schedule-tbody");
-    var empty = document.getElementById("schedule-empty");
-    var upcomingCards = document.getElementById("schedule-upcoming-cards");
-    if (!tbody) return;
-    
-    if (entries.length === 0) {
-        tbody.innerHTML = "";
-        if (empty) empty.style.display = "block";
-        if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries for this date.</div>';
-        return;
-    }
-    if (empty) empty.style.display = "none";
-    var userEmail = (currentUser && currentUser.email || "").toLowerCase();
-    
-    var html = "";
-    entries.forEach(function(entry, idx) {
-        var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
-        var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
-        var canLaunch = isAssignedToMe && !assetExists;
-        var launched = assetExists;
-        html += "<tr class='hover:bg-sclo smooth border-b border-ov/20'>";
-        html += "<td class='p-3 pl-4 text-secondary font-mono text-xs'>" + (idx + 1) + "</td>";
-        html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(entry.schedule_date) + "</td>";
-        html += "<td class='p-3 text-on-surface max-w-[200px] truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</td>";
-        html += "<td class='p-3 text-secondary font-mono text-xs'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</td>";
-        html += "<td class='p-3 text-secondary font-mono text-xs'>S" + escHtml(entry.season_no) + "/E" + escHtml(entry.episode_no) + "</td>";
-        html += "<td class='p-3 text-center font-mono text-xs text-secondary'>" + (entry.segment_count || "—") + "</td>";
-        html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + "</td>";
-        var ti2 = getTypeInfo(entry.event_type);
-        html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
-        html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
-        html += "<option value=''>— Unassigned —</option>";
-        for (var emailKey in userProfiles) {
-            var p = userProfiles[emailKey];
-            var pEmail = p.email || emailKey;
-            var pName = p.name || pEmail.split('@')[0];
-            var sel = (entry.assigned_to && entry.assigned_to.toLowerCase() === pEmail.toLowerCase()) ? " selected" : "";
-            html += "<option value='" + escHtml(pEmail) + "'" + sel + ">" + escHtml(pName) + " (" + escHtml(pEmail) + ")</option>";
-        }
-        html += "</select></td>";
-        html += "<td class='p-3 text-center'>";
-        if (launched) {
-            html += "<span class='text-[11px] font-bold text-success'>Launched</span>";
-        } else if (entry.assigned_to && entry.status === "assigned") {
-            html += "<span class='text-[11px] font-bold text-primary'>Assigned</span>";
-        } else {
-            html += "<span class='text-[11px] font-bold text-secondary'>Pending</span>";
-        }
-        html += "</td>";
-        html += "<td class='p-3 text-right'>";
-        if (canLaunch) {
-            html += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 ripple-host flex items-center gap-1 ml-auto'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
-        } else if (launched) {
-            html += "<button onclick=\"nav('editor'); loadToEditor('" + escHtml(entry.launched_asset_id) + "');\" class='btn-secondary text-xs px-3 py-1.5 ripple-host flex items-center gap-1 ml-auto'><span class='ms text-[14px]'>open_in_new</span>Open</button>";
-        } else if (entry.assigned_to && !isAssignedToMe) {
-            var assignedName = entry.assigned_to;
-            var assignedInfo = getUserInfo(entry.assigned_to);
-            if (assignedInfo && assignedInfo.name) assignedName = assignedInfo.name;
-            html += "<span class='text-xs text-secondary'>Assigned to " + escHtml(assignedName) + "</span>";
-        }
-        html += "</td>";
-        html += "</tr>";
-    });
-    tbody.innerHTML = html;
-    
-    // Upcoming cards for assigned to current user
-    if (upcomingCards) {
-        var myUpcoming = scheduleEntries.filter(function(e) {
-            var eAssetExists = e.launched_asset_id ? !!globalSegments[e.launched_asset_id] : false;
-            return !eAssetExists && e.assigned_to && e.assigned_to.toLowerCase() === userEmail;
-        });
-        if (myUpcoming.length > 0) {
-            var cardsHtml = "";
-            myUpcoming.forEach(function(entry) {
-                cardsHtml += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
-                var ti = getTypeInfo(entry.event_type);
-                cardsHtml += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(entry.schedule_date) + "</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
-                cardsHtml += "<div class='font-bold text-sm text-on-surface truncate'>" + escHtml(entry.episode_title) + "</div>";
-                cardsHtml += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
-                cardsHtml += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
-                cardsHtml += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
-                cardsHtml += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
-                cardsHtml += "</div>";
-            });
-            upcomingCards.innerHTML = cardsHtml;
-        } else {
-            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No upcoming events assigned to you.</div>';
-        }
-    }
 }
 
 function formatDateShort(dateStr) {
@@ -601,7 +533,7 @@ function renderDashUpcomingCards(entries, userEmail) {
     if (!upcomingSection || !upcomingCards) return;
     
     entries.sort(function(a, b) {
-        return a.start_time_edt.localeCompare(b.start_time_edt);
+        return a.start_time_ist.localeCompare(b.start_time_ist);
     });
     
     if (entries.length > 0) {
@@ -610,12 +542,14 @@ function renderDashUpcomingCards(entries, userEmail) {
         entries.forEach(function(entry) {
             var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
             var ti = getTypeInfo(entry.event_type);
+            var cid3 = "cd-" + entry.row_index + "-" + entry.schedule_date + "-dash";
             html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2 min-w-0'>";
             html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(entry.schedule_date) + "</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
             html += "<div class='font-bold text-sm text-on-surface truncate'>" + escHtml(entry.episode_title) + "</div>";
             html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
             html += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
             html += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
+            html += "<div class='text-[10px] font-mono' id='" + cid3 + "'>" + getCountdownText(entry) + "</div>";
             if (isAssignedToMe) {
                 html += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
             } else if (entry.assigned_to) {
@@ -640,3 +574,182 @@ renderDash = function() {
     origRenderDash();
     renderDashUpcoming();
 };
+
+// ============ SCHEDULE COUNTDOWN TIMER ============
+var _countdown5minWarned = {};
+
+function getCountdownText(entry) {
+    var startIst = entry.start_time_ist || entry.start_time_edt || "";
+    if (!startIst || !entry.schedule_date) return "";
+    var parts = startIst.split(":");
+    var h = parseInt(parts[0]) || 0;
+    var m = parseInt(parts[1]) || 0;
+    var target = new Date(entry.schedule_date + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00");
+    var diff = target.getTime() - Date.now();
+    if (diff <= 0) return "LIVE";
+    var secs = Math.floor(diff / 1000);
+    var hh = Math.floor(secs / 3600);
+    var mm = Math.floor((secs % 3600) / 60);
+    var ss = secs % 60;
+    return ("0"+hh).slice(-2) + ":" + ("0"+mm).slice(-2) + ":" + ("0"+ss).slice(-2);
+}
+
+function shouldWarn5min(entry) {
+    var startIst = entry.start_time_ist || entry.start_time_edt || "";
+    if (!startIst || !entry.schedule_date) return false;
+    if (_countdown5minWarned[entry.row_index + "|" + entry.schedule_date]) return false;
+    var parts = startIst.split(":");
+    var h = parseInt(parts[0]) || 0;
+    var m = parseInt(parts[1]) || 0;
+    var target = new Date(entry.schedule_date + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00");
+    var diff = target.getTime() - Date.now();
+    var minsLeft = diff / 60000;
+    if (minsLeft <= 5 && minsLeft > 4.5) {
+        _countdown5minWarned[entry.row_index + "|" + entry.schedule_date] = true;
+        return true;
+    }
+    return false;
+}
+
+function updateCountdowns() {
+    var now = Date.now();
+    var userEmail = (currentUser && currentUser.email || "").toLowerCase();
+    scheduleEntries.forEach(function(entry) {
+        // Check 5-min warning for assigned entries
+        if (entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail && shouldWarn5min(entry)) {
+            sb.from("notifications").insert({
+                target_email: userEmail,
+                from_user: "System",
+                message: "Schedule alert: \"" + (entry.episode_title || entry.series_name || "Event") + "\" starts in 5 minutes!",
+                notification_type: "schedule_alert",
+                asset_id: entry.launched_asset_id || entry.sheet_asset_id || "",
+                read: false
+            }).then(function() {
+                showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes!", "w", 8000);
+            });
+        }
+        // Update countdown spans (schedule + dashboard)
+        var ids = ["cd-" + entry.row_index + "-" + entry.schedule_date, "cd-" + entry.row_index + "-" + entry.schedule_date + "-dash"];
+        ids.forEach(function(cid) {
+            var el = document.getElementById(cid);
+            if (el) {
+                var text = getCountdownText(entry);
+                if (entry.launched_asset_id && globalSegments[entry.launched_asset_id]) {
+                    el.textContent = "Launched";
+                    el.className = "text-[10px] text-success font-bold";
+                } else if (text === "LIVE") {
+                    el.textContent = "LIVE";
+                    el.className = "text-[10px] text-error font-bold animate-pulse";
+                } else if (text) {
+                    el.textContent = "in " + text;
+                    el.className = "text-[10px] text-primary font-mono";
+                } else {
+                    el.textContent = "";
+                }
+            }
+        });
+    });
+}
+
+// Start countdown timer on init
+var _countdownTimer = setInterval(updateCountdowns, 1000);
+
+function renderScheduleTable(entries) {
+    entries.sort(function(a, b) {
+        return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
+    });
+    var tbody = document.getElementById("schedule-tbody");
+    var empty = document.getElementById("schedule-empty");
+    var upcomingCards = document.getElementById("schedule-upcoming-cards");
+    if (!tbody) return;
+    
+    if (entries.length === 0) {
+        tbody.innerHTML = "";
+        if (empty) empty.style.display = "block";
+        if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries for this date.</div>';
+        return;
+    }
+    if (empty) empty.style.display = "none";
+    var userEmail = (currentUser && currentUser.email || "").toLowerCase();
+    
+    var html = "";
+    entries.forEach(function(entry, idx) {
+        var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
+        var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
+        var canLaunch = isAssignedToMe && !assetExists;
+        var launched = assetExists;
+        var cid = "cd-" + entry.row_index + "-" + entry.schedule_date;
+        html += "<tr class='hover:bg-sclo smooth border-b border-ov/20'>";
+        html += "<td class='p-3 pl-4 text-secondary font-mono text-xs'>" + (idx + 1) + "</td>";
+        html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(entry.schedule_date) + "</td>";
+        html += "<td class='p-3 text-on-surface max-w-[200px] truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</td>";
+        html += "<td class='p-3 text-secondary font-mono text-xs'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</td>";
+        html += "<td class='p-3 text-secondary font-mono text-xs'>S" + escHtml(entry.season_no) + "/E" + escHtml(entry.episode_no) + "</td>";
+        html += "<td class='p-3 text-center font-mono text-xs text-secondary'>" + (entry.segment_count || "—") + "</td>";
+        html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + "<br><span id='" + cid + "' class='text-[10px] text-primary font-mono'>" + getCountdownText(entry) + "</span></td>";
+        var ti2 = getTypeInfo(entry.event_type);
+        html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
+        html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
+        html += "<option value=''>— Unassigned —</option>";
+        for (var emailKey in userProfiles) {
+            var p = userProfiles[emailKey];
+            var pEmail = p.email || emailKey;
+            var pName = p.name || pEmail.split('@')[0];
+            var sel = (entry.assigned_to && entry.assigned_to.toLowerCase() === pEmail.toLowerCase()) ? " selected" : "";
+            html += "<option value='" + escHtml(pEmail) + "'" + sel + ">" + escHtml(pName) + " (" + escHtml(pEmail) + ")</option>";
+        }
+        html += "</select></td>";
+        html += "<td class='p-3 text-center'>";
+        if (launched) {
+            html += "<span class='text-[11px] font-bold text-success'>Launched</span>";
+        } else if (entry.assigned_to && entry.status === "assigned") {
+            html += "<span class='text-[11px] font-bold text-primary'>Assigned</span>";
+        } else {
+            html += "<span class='text-[11px] font-bold text-secondary'>Pending</span>";
+        }
+        html += "</td>";
+        html += "<td class='p-3 text-right'>";
+        if (canLaunch) {
+            html += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 ripple-host flex items-center gap-1 ml-auto'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
+        } else if (launched) {
+            html += "<button onclick=\"nav('editor'); loadToEditor('" + escHtml(entry.launched_asset_id) + "');\" class='btn-secondary text-xs px-3 py-1.5 ripple-host flex items-center gap-1 ml-auto'><span class='ms text-[14px]'>open_in_new</span>Open</button>";
+        } else if (entry.assigned_to && !isAssignedToMe) {
+            var assignedName = entry.assigned_to;
+            var assignedInfo = getUserInfo(entry.assigned_to);
+            if (assignedInfo && assignedInfo.name) assignedName = assignedInfo.name;
+            html += "<span class='text-xs text-secondary'>Assigned to " + escHtml(assignedName) + "</span>";
+        }
+        html += "</td>";
+        html += "</tr>";
+    });
+    tbody.innerHTML = html;
+    
+    // Upcoming cards for assigned to current user
+    if (upcomingCards) {
+        var myUpcoming = scheduleEntries.filter(function(e) {
+            var eAssetExists = e.launched_asset_id ? !!globalSegments[e.launched_asset_id] : false;
+            return !eAssetExists && e.assigned_to && e.assigned_to.toLowerCase() === userEmail;
+        });
+        if (myUpcoming.length > 0) {
+            var cardsHtml = "";
+            myUpcoming.forEach(function(entry) {
+                var cid2 = "cd-" + entry.row_index + "-" + entry.schedule_date;
+                cardsHtml += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
+                var ti = getTypeInfo(entry.event_type);
+                cardsHtml += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(entry.schedule_date) + "</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
+                cardsHtml += "<div class='font-bold text-sm text-on-surface truncate'>" + escHtml(entry.episode_title) + "</div>";
+                cardsHtml += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
+                cardsHtml += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
+                cardsHtml += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
+                cardsHtml += "<div class='text-[10px] font-mono text-primary' id='" + cid2 + "'>" + getCountdownText(entry) + "</div>";
+                cardsHtml += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
+                cardsHtml += "</div>";
+            });
+            upcomingCards.innerHTML = cardsHtml;
+        } else {
+            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No upcoming events assigned to you.</div>';
+        }
+    }
+}
+
+

@@ -184,27 +184,27 @@ function exportBilling(){
   var fmt=document.getElementById("export-billing-fmt")?.value||"csv";
   var data=assets.map(function(a){
     var actualSecs=a.rows.reduce(function(s,r){return s+toSec(r[9]||"")},0);
-    var expSecs=toSec("00:30:00");
-    var diff=actualSecs-expSecs;
-    var isOT=diff>0;
-    return{id:a.id,title:a.title,date:a.date,actualDuration:tcStr(actualSecs),expectedDuration:tcStr(expSecs),difference:(isOT?"+":"")+tcStr(diff),status:isOT?"Overtime":"Undertime"}
+    return{id:a.id,title:a.title,date:a.date,actualDuration:tcStr(actualSecs)}
   });
+  var totalSecs=assets.reduce(function(s,a){return s+a.rows.reduce(function(s2,r){return s2+toSec(r[9]||"")},0)},0);
   var blob;
   if(fmt==="csv"){
-    var h="Asset ID,Title,Date,Actual Duration,Expected Duration,Difference,Status\n";
-    var r2=data.map(function(d){return '"'+(d.id||"")+'","'+(d.title||"")+'","'+(d.date||"")+'","'+(d.actualDuration||"")+'","'+(d.expectedDuration||"")+'","'+(d.difference||"")+'","'+(d.status||"")+'"'}).join("\n");
-    blob=new Blob(["\ufeff"+h+r2],{type:"text/csv;charset=utf-8"})
+    var h="Asset ID,Title,Date,Actual Duration\n";
+    var r2=data.map(function(d){return '"'+(d.id||"")+'","'+(d.title||"")+'","'+(d.date||"")+'","'+(d.actualDuration||"")+'"'}).join("\n");
+    blob=new Blob(["\ufeff"+h+r2+"\nTotal,,,"+tcStr(totalSecs)],{type:"text/csv;charset=utf-8"})
   }else if(fmt==="xml"){
-    var x='<?xml version="1.0"?>\n<billing>\n';data.forEach(function(d){x+='  <asset>\n    <id>'+(d.id||"")+'</id>\n    <title>'+(d.title||"")+'</title>\n    <date>'+(d.date||"")+'</date>\n    <actual_duration>'+(d.actualDuration||"")+'</actual_duration>\n    <expected_duration>'+(d.expectedDuration||"")+'</expected_duration>\n    <difference>'+(d.difference||"")+'</difference>\n    <status>'+(d.status||"")+'</status>\n  </asset>\n'});x+='</billing>';
+    var x='<?xml version="1.0"?>\n<billing>\n';data.forEach(function(d){x+='  <asset>\n    <id>'+(d.id||"")+'</id>\n    <title>'+(d.title||"")+'</title>\n    <date>'+(d.date||"")+'</date>\n    <actual_duration>'+(d.actualDuration||"")+'</actual_duration>\n  </asset>\n'});x+='  <total_duration>'+tcStr(totalSecs)+'</total_duration>\n</billing>';
     blob=new Blob([x],{type:"application/xml"})
   }else if(fmt==="xlsx"){
     var x='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Billing"><Table>';
-    x+='<Row><Cell><Data ss:Type="String">Asset ID</Data></Cell><Cell><Data ss:Type="String">Title</Data></Cell><Cell><Data ss:Type="String">Date</Data></Cell><Cell><Data ss:Type="String">Actual Duration</Data></Cell><Cell><Data ss:Type="String">Expected Duration</Data></Cell><Cell><Data ss:Type="String">Difference</Data></Cell><Cell><Data ss:Type="String">Status</Data></Cell></Row>';
-    data.forEach(function(d){x+='<Row><Cell><Data ss:Type="String">'+(d.id||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.title||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.date||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.actualDuration||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.expectedDuration||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.difference||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.status||"")+'</Data></Cell></Row>'});
+    x+='<Row><Cell><Data ss:Type="String">Asset ID</Data></Cell><Cell><Data ss:Type="String">Title</Data></Cell><Cell><Data ss:Type="String">Date</Data></Cell><Cell><Data ss:Type="String">Actual Duration</Data></Cell></Row>';
+    data.forEach(function(d){x+='<Row><Cell><Data ss:Type="String">'+(d.id||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.title||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.date||"")+'</Data></Cell><Cell><Data ss:Type="String">'+(d.actualDuration||"")+'</Data></Cell></Row>'});
+    x+='<Row><Cell><Data ss:Type="String">Total</Data></Cell><Cell/><Cell/><Cell><Data ss:Type="String">'+tcStr(totalSecs)+'</Data></Cell></Row>';
     x+='</Table></Worksheet></Workbook>';
     blob=new Blob([x],{type:"application/vnd.ms-excel"})
   }else{
-    blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"})
+    var jsonData = data.concat({id:"Total",title:"",date:"",actualDuration:tcStr(totalSecs)});
+    blob=new Blob([JSON.stringify(jsonData,null,2)],{type:"application/json"})
   }
   var url=URL.createObjectURL(blob);var a2=document.createElement("a");a2.href=url;a2.download="billing_info."+fmt;a2.click();URL.revokeObjectURL(url);
   showToast("Exported "+data.length+" assets","s");logAudit("export_billing_"+fmt,"","Exported "+data.length+" billing entries")

@@ -1,19 +1,13 @@
 // ============ TICKETS ============
-var ticketsCache=[],ticketIdCounter=1000;
-function generateTicketId(){ticketIdCounter++;return "TCK-"+ticketIdCounter}
+var ticketsCache=[];
+function generateTicketId(){return "TCK-"+Date.now()+"-"+Math.floor(Math.random()*1000)}
 
 function loadTickets(){
   ticketsCache=ticketsCache||[];
-  if(!sb){showToast("Supabase not connected","e");renderTicketsView();return}
+  if(!sb){showToast("Supabase not connected","e");renderTicketsView();return Promise.resolve()}
   return sb.from("tickets").select("*").order("created_at",{ascending:false}).then(function(r){
     if(r.error){console.warn("Tickets load error:",r.error);showToast("Tickets DB error: "+r.error.message,"w");renderTicketsView();return}
     ticketsCache=r.data||[];
-    var maxNum=0;
-    (r.data||[]).forEach(function(t){
-      var m=(t.ticket_id||"").match(/TCK-(\d+)/);
-      if(m){var n=parseInt(m[1],10);if(n>maxNum)maxNum=n}
-    });
-    if(maxNum>ticketIdCounter)ticketIdCounter=maxNum;
     sb.from("ticket_comments").select("*").order("created_at",{ascending:true}).then(function(cr){
       if(!cr.error&&cr.data){
         ticketsCache.forEach(function(t){t._comments=cr.data.filter(function(c){return c.ticket_id===t.id})})
@@ -180,8 +174,26 @@ async function submitNewTicket(){
   var actualVis=isEveryone?"everyone":vis;
   var t={ticket_id:tid,subject:sub,body:body||"",asset_id:assetId,status:"open",created_by_email:currentUser.email||"",created_by_name:currentUser.name||"",visibility:actualVis,target_email:targetEmail};
   if(images.length)t.images=images;
-  var {data,error}=await sb.from("tickets").insert(t).select();
-  if(error){console.error("Ticket insert error:",error);showToast("Create ticket error: "+error.message,"e");return}
+  var result;
+  try {
+    result = await sb.from("tickets").insert(t).select();
+  } catch(e) {
+    showToast("Connection lost. Please wait and try again.", "w", 5000);
+    return;
+  }
+  var error = result.error;
+  if(error){
+    if(error.message && error.message.indexOf("duplicate")>=0){
+      showToast("This ticket ID already exists. Please try again.", "w", 5000);
+    } else if(error.message && error.message.indexOf("network")>=0){
+      showToast("Network error. Please check your connection and try again.", "w", 5000);
+    } else {
+      showToast("Something went wrong. Please try again.", "w", 5000);
+    }
+    return;
+  }
+  var data = result.data;
+  var dbId = (data && data.length) ? data[0].id : tid;
   // Immediately add to local cache so creator sees it right away
   if(data&&data.length){ticketsCache.unshift(data[0]);renderTicketsView()}
   // Also do a full refresh to sync comments and ensure consistency
@@ -214,7 +226,7 @@ async function submitNewTicket(){
     if(curEmail)notifTargets[curEmail]=true;
   }
   Object.keys(notifTargets).forEach(function(em){
-    sb.from("notifications").insert({target_email:em,from_user:currentUser.name||currentUser.email||"",message:"Ticket #"+tid+": "+sub,notification_type:"ticket",ticket_id:tid,read:false}).then(function(){})
+    sb.from("notifications").insert({target_email:em,from_user:currentUser.name||currentUser.email||"",message:"Ticket #"+tid+": "+sub,notification_type:"ticket",ticket_id:dbId,read:false}).then(function(){})
   });
 }
 function readFileAsDataUrl(file){
@@ -311,8 +323,10 @@ async function addTicketComment(ticketId){
   var body=input.value.trim();
   if(!body){showToast("Write a comment","w");return}
   var c={ticket_id:Number(ticketId),message:body,user_email:currentUser.email||"",user_name:currentUser.name||""};
-  var {data,error}=await sb.from("ticket_comments").insert(c).select();
-  if(error){showToast("Comment error: "+error.message,"e");return}
+  var cres;
+  try { cres = await sb.from("ticket_comments").insert(c).select(); } catch(e) { showToast("Connection lost. Please try again.", "w"); return; }
+  if(cres.error){showToast("Could not post comment. Please try again.", "w"); return}
+  var data = cres.data;
   input.value="";
   showToast("Comment added","s");
   logAudit("ticket_comment",ticketId,"Added comment");
@@ -361,29 +375,29 @@ async function addTicketComment(ticketId){
 }
 
 async function resolveTicket(ticketId){
-  var {error}=await sb.from("tickets").update({status:"resolved",resolved_at:new Date().toISOString(),resolved_by:currentUser.email||""}).eq("id",ticketId);
-  if(error){showToast("Error: "+error.message,"e");return}
+  var rres;
+  try { rres = await sb.from("tickets").update({status:"resolved",resolved_at:new Date().toISOString(),resolved_by:currentUser.email||""}).eq("id",ticketId); } catch(e) { showToast("Connection lost. Please try again.", "w"); return; }
+  if(rres.error){showToast("Could not resolve. Please try again.", "w"); return}
   window._openTicketDetailId=null;loadTickets();closeModal("m-ticket-detail");showToast("Ticket resolved","s");logAudit("resolve_ticket",ticketId,"")
 }
 
 async function closeTicket(ticketId){
   requestConfirmation("Close ticket?","Mark as closed.",function(){
     sb.from("tickets").update({status:"closed",closed_at:new Date().toISOString(),closed_by:currentUser.email||""}).eq("id",ticketId).then(function(r){
-      if(r.error){showToast("Error: "+r.error.message,"e");return}
+      if(r.error){showToast("Could not close. Please try again.", "w"); return}
       window._openTicketDetailId=null;loadTickets();closeModal("m-ticket-detail");showToast("Ticket closed","s");logAudit("close_ticket",ticketId,"")
-    })
+    }).catch(function(){showToast("Connection lost. Please try again.", "w")})
   },"Close")
 }
 async function deleteTicket(ticketId){
   requestConfirmation("Delete ticket permanently?","This will also delete all comments. Cannot be undone.",async function(){
     try{
       var tid=Number(ticketId);
-      var {error}=await sb.from("tickets").delete().eq("id",tid);
-      if(error){showToast("Delete failed: "+error.message,"e");return}
-      // FK cascade handles ticket_comments — no manual delete needed
+      var dres = await sb.from("tickets").delete().eq("id",tid);
+      if(dres.error){showToast("Could not delete. Please try again.", "w");return}
       window._openTicketDetailId=null;ticketsCache=ticketsCache.filter(function(t){return Number(t.id)!==tid});
       renderTicketsView();loadTickets();closeModal("m-ticket-detail");showToast("Ticket deleted","s");logAudit("delete_ticket",ticketId,"")
-    }catch(e){showToast("Delete error: "+e.message,"e")}
+    }catch(e){showToast("Connection lost. Please try again.", "w")}
   },"Delete Forever")
 }
 async function raiseTicketNotif(ticketId){
@@ -399,7 +413,7 @@ async function raiseTicketNotif(ticketId){
     }
   }
   targets.forEach(function(em){
-    sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject,notification_type:"ticket",ticket_id:ticket.ticket_id||ticket.id,read:false}).then(function(){})
+    sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject,notification_type:"ticket",ticket_id:ticket.id,read:false}).then(function(){})
   });
   showToast("Notification raised to "+(ticket.target_email?"recipient":"all users"),"s");
   logAudit("raise_ticket",ticketId,"Raised ticket notification")

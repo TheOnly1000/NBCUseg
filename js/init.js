@@ -12,29 +12,13 @@ async function initApp() {
             return;
         }
         
-        var isDark = localStorage.getItem('theme') === 'dark';
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.style.colorScheme = 'dark';
-            if(document.getElementById('theme-toggle')) document.getElementById('theme-toggle').checked = true;
-            var modeToggle = document.getElementById('theme-mode-toggle');
-            if (modeToggle) modeToggle.checked = true;
-        } else {
-            document.documentElement.style.colorScheme = 'light';
-        }
-        updateThemeUI(isDark);
-        var darkStyleEl = document.getElementById('theme-dark-style');
-        if (darkStyleEl) darkStyleEl.disabled = !isDark;
-
         var savedAccent = localStorage.getItem('seg_accent_color');
         if (savedAccent) setAccentColor(savedAccent);
-        
-        var savedDarkStyle = localStorage.getItem('seg_dark_style');
-        if (savedDarkStyle && document.documentElement.classList.contains('dark')) {
-            var styleSelect = document.getElementById('theme-dark-style');
-            if (styleSelect) styleSelect.value = savedDarkStyle;
-            setDarkStyle(savedDarkStyle);
-        }
+        // Clean up dark mode leftovers
+        localStorage.removeItem('theme');
+        localStorage.removeItem('seg_dark_style');
+        document.documentElement.classList.remove('dark');
+        document.documentElement.style.colorScheme = 'light';
 
         var sessionRes = await Promise.race([
             sb.auth.getSession(),
@@ -44,6 +28,8 @@ async function initApp() {
         if (session) {
             currentUser = { id: session.user.id, email: session.user.email, name: session.user.user_metadata?.name || session.user.email.split('@')[0], avatar: session.user.user_metadata?.avatar || "" };
             updateSidebarProfile();
+            var themeMsg = document.getElementById("theme-username");
+            if (themeMsg) themeMsg.textContent = currentUser.name;
             var lastView = "dashboard";
             try { var saved = localStorage.getItem('seg_last_view'); if (saved) lastView = saved; } catch(e) {}
             nav(lastView);
@@ -126,7 +112,7 @@ function handleGlobalKeys(event) {
     if (modKey && event.key.toLowerCase() === "s" && event.shiftKey && !isTyping) { event.preventDefault(); saveSegmentsToDb(); return; }
     if (modKey && event.key === "Enter" && !isTyping) { event.preventDefault(); addSeg(); return; }
     if (modKey && event.key.toLowerCase() === "c" && !isTyping) { event.preventDefault(); copyEditorMcr(); return; }
-    if (modKey && event.key.toLowerCase() === "d" && !isTyping) { event.preventDefault(); toggleDarkMode(); return; }
+    // Dark mode shortcut removed
     if (modKey && event.key === "1" && !isTyping) { event.preventDefault(); nav("dashboard"); return; }
     if (modKey && event.key === "2" && !isTyping) { event.preventDefault(); nav("assets"); return; }
     if (modKey && event.key === "3" && !isTyping) { event.preventDefault(); nav("editor"); return; }

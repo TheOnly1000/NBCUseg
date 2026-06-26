@@ -45,13 +45,7 @@ function hideWelcomeScreen() {
 function showGlobalLoader(show) {
     const loader = document.getElementById("gl");
     if(!loader) return;
-    if (show) {
-        loader.style.display = "flex";
-        startProgressBar();
-    } else {
-        loader.style.display = "none";
-        finishProgressBar();
-    }
+    loader.style.display = show ? "flex" : "none";
 }
 
 function showToast(message, type = "i", durationMs = 4000, actionObj = null) {
@@ -171,37 +165,6 @@ function requestConfirmation(title, message, callbackFn, buttonLabel = "Confirm"
     openModal("m-confirm");
 }
 
-function toggleDarkMode() {
-    const isDark = document.documentElement.classList.toggle('dark');
-    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    updateThemeUI(isDark);
-    syncThemeToggleUI(isDark);
-    var darkStyleEl = document.getElementById('theme-dark-style');
-    if (darkStyleEl) darkStyleEl.disabled = !isDark;
-    var accent = localStorage.getItem('seg_accent_color');
-    if (accent) setAccentColor(accent);
-}
-
-function syncThemeToggleUI(isDark) {
-    const modeToggle = document.getElementById('theme-mode-toggle');
-    if (modeToggle) modeToggle.checked = isDark;
-}
-
-function updateThemeUI(isDark) {
-    const dot = document.getElementById('theme-mode-dot');
-    const icon = document.getElementById('theme-mode-icon');
-    const bg = document.getElementById('theme-mode-bg');
-    if (!dot || !icon || !bg) return;
-    if (isDark) {
-        dot.style.transform = 'translateX(20px)'; icon.textContent = 'dark_mode';
-        bg.style.backgroundColor = 'var(--c-primary)'; bg.style.borderColor = 'var(--c-primary)';
-    } else {
-        dot.style.transform = 'translateX(0)'; icon.textContent = 'light_mode';
-        bg.style.backgroundColor = 'var(--c-sc)'; bg.style.borderColor = 'var(--c-ov)';
-    }
-}
-
 function updateDualClocks() {
     const now = new Date();
     const istClock = document.getElementById('clock-ist');
@@ -217,12 +180,11 @@ function setAccentColor(color, el) {
     const ring = rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},0.15)` : 'rgba(0,62,199,0.15)';
     document.documentElement.style.setProperty('--c-input-focus-ring', ring);
     
-    var isDark = document.documentElement.classList.contains('dark');
-    document.documentElement.style.setProperty('--c-pc', isDark ? lightenColor(color, 20) : darkenColor(color, 10));
-    document.documentElement.style.setProperty('--c-op', isDark ? darkenColor(color, 60) : '#ffffff');
-    document.documentElement.style.setProperty('--c-pf', isDark ? darkenColor(color, 70) : lightenColor(color, 80));
-    document.documentElement.style.setProperty('--c-opc', isDark ? darkenColor(color, 70) : hexToRgba(color, 0.08));
-    document.documentElement.style.setProperty('--c-primary-grad', isDark ? lightenColor(color, 20) : darkenColor(color, 30));
+    document.documentElement.style.setProperty('--c-pc', darkenColor(color, 10));
+    document.documentElement.style.setProperty('--c-op', '#ffffff');
+    document.documentElement.style.setProperty('--c-pf', lightenColor(color, 80));
+    document.documentElement.style.setProperty('--c-opc', hexToRgba(color, 0.08));
+    document.documentElement.style.setProperty('--c-primary-grad', darkenColor(color, 30));
     
     const picker = document.getElementById('theme-accent-picker');
     if (picker) picker.value = color;
@@ -260,48 +222,4 @@ function hexToRgb(hex) {
     return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
 }
 
-function setDarkStyle(style) {
-    const r = document.documentElement;
-    if (style === 'warmer') {
-        r.style.setProperty('--c-bg', '#0f0b08');
-        r.style.setProperty('--c-surface', '#1a1410');
-        r.style.setProperty('--c-scl', '#221b16');
-        r.style.setProperty('--c-sclo', '#2d241e');
-        r.style.setProperty('--c-sc', '#3d322a');
-        r.style.setProperty('--c-sch', '#4d4036');
-        r.style.setProperty('--c-on-surface', '#f5f0ea');
-        r.style.setProperty('--c-osv', '#c4b8ae');
-        r.style.setProperty('--c-ov', '#3d322a');
-    } else if (style === 'cooler') {
-        r.style.setProperty('--c-bg', '#070d16');
-        r.style.setProperty('--c-surface', '#0c1320');
-        r.style.setProperty('--c-scl', '#111b2e');
-        r.style.setProperty('--c-sclo', '#182540');
-        r.style.setProperty('--c-sc', '#253552');
-        r.style.setProperty('--c-sch', '#364a6b');
-        r.style.setProperty('--c-on-surface', '#e8eef8');
-        r.style.setProperty('--c-osv', '#a8bccf');
-        r.style.setProperty('--c-ov', '#253552');
-    } else if (style === 'contrast') {
-        r.style.setProperty('--c-bg', '#000000');
-        r.style.setProperty('--c-surface', '#0a0a0a');
-        r.style.setProperty('--c-scl', '#111111');
-        r.style.setProperty('--c-sclo', '#1a1a1a');
-        r.style.setProperty('--c-sc', '#2a2a2a');
-        r.style.setProperty('--c-sch', '#3a3a3a');
-        r.style.setProperty('--c-on-surface', '#ffffff');
-        r.style.setProperty('--c-osv', '#cccccc');
-        r.style.setProperty('--c-ov', '#2a2a2a');
-    } else {
-        r.style.setProperty('--c-bg', '#0b1120');
-        r.style.setProperty('--c-surface', '#0f172a');
-        r.style.setProperty('--c-scl', '#111827');
-        r.style.setProperty('--c-sclo', '#1e293b');
-        r.style.setProperty('--c-sc', '#334155');
-        r.style.setProperty('--c-sch', '#475569');
-        r.style.setProperty('--c-on-surface', '#f1f5f9');
-        r.style.setProperty('--c-osv', '#94a3b8');
-        r.style.setProperty('--c-ov', '#334155');
-    }
-    localStorage.setItem('seg_dark_style', style);
-}
+
