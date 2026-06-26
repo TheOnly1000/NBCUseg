@@ -1760,7 +1760,9 @@ async function handleUserLogin(event) {
     finishProgressBar();
     showWelcomeScreen(currentUser.name, true);
     setTimeout(function() {
-        nav("dashboard"); 
+        var lastView = "dashboard";
+        try { var saved = localStorage.getItem('seg_last_view'); if (saved) lastView = saved; } catch(e) {}
+        nav(lastView); 
         loadAllSegments();
         loadTickets();
         fetchNotifications();
@@ -1879,7 +1881,9 @@ async function initApp() {
         if (session) {
             currentUser = { id: session.user.id, email: session.user.email, name: session.user.user_metadata?.name || session.user.email.split('@')[0], avatar: session.user.user_metadata?.avatar || "" };
             updateSidebarProfile();
-            nav("dashboard");
+            var lastView = "dashboard";
+            try { var saved = localStorage.getItem('seg_last_view'); if (saved) lastView = saved; } catch(e) {}
+            nav(lastView);
             loadAllSegments();
             loadTickets();
             loadThumbnails();
@@ -3539,6 +3543,8 @@ function nav(viewId) {
         document.getElementById("app-main")?.classList.remove("on");
         return;
     }
+    
+    try { localStorage.setItem('seg_last_view', viewId); } catch(e) {}
     
     document.getElementById("screen-login")?.classList.remove("on");
     document.getElementById("app-main")?.classList.add("on");
@@ -6196,6 +6202,7 @@ nav=function(viewId){
     var tv=document.getElementById("vp-tickets");if(tv){tv.classList.add("on","enter")}
     var nb=document.getElementById("nb-tickets");if(nb)nb.classList.add("on");
     var nb2=document.getElementById("bn-tickets");if(nb2)nb2.classList.add("on");
+    try { localStorage.setItem('seg_last_view', 'tickets'); } catch(e) {}
     loadTickets();
     return
   }
