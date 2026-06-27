@@ -101,7 +101,13 @@ function renderDash() {
         return;
     }
     
-    filteredAssets.forEach((asset, i) => {
+    var countEl = document.getElementById("dash-count");
+    if (countEl) countEl.textContent = filteredAssets.length + " total asset" + (filteredAssets.length !== 1 ? "s" : "");
+    
+    const showAll = gridContainer.dataset.showAll === "true";
+    const displayAssets = showAll ? filteredAssets : filteredAssets.slice(0, 12);
+    
+    displayAssets.forEach((asset, i) => {
         const isLive = (asset.type || "").toLowerCase() === "live";
         const badgeStyle = isLive ? "bg-error text-white" : "bg-pf text-primary border border-primary/20";
         const hasGlitch = asset.rows.some(r => r[7] && r[7] !== "-" && r[7] !== "--");
@@ -159,6 +165,20 @@ function renderDash() {
         cardEl.onclick = () => openFso(asset.id);
         gridContainer.appendChild(cardEl);
     });
+    
+    if (filteredAssets.length > 12) {
+        var toggleBtn = document.createElement("div");
+        toggleBtn.className = "col-span-full flex justify-center mt-6";
+        toggleBtn.innerHTML = '<button onclick="toggleDashShowAll()" class="btn-secondary flex items-center gap-2 text-sm px-6 py-2.5 rounded-xl ripple-host"><span class="ms text-[18px]">' + (showAll ? 'unfold_less' : 'unfold_more') + '</span>' + (showAll ? 'Show Less' : 'See All (' + filteredAssets.length + ' assets)') + '</button>';
+        gridContainer.appendChild(toggleBtn);
+    }
+}
+
+function toggleDashShowAll() {
+    var grid = document.getElementById("dgrid");
+    if (!grid) return;
+    grid.dataset.showAll = grid.dataset.showAll === "true" ? "false" : "true";
+    renderDash();
 }
 
 function renderAssets() {

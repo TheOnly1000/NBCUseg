@@ -444,7 +444,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
             <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
               <div>
                   <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Dashboard</h1>
-                  <p class="text-secondary text-sm mt-1">Recent activity across all synced nodes.</p>
+                  <p class="text-secondary text-sm mt-1">Recent activity across all synced nodes. <span id="dash-count" class="text-primary font-medium"></span></p>
               </div>
               <div class="flex flex-wrap items-center gap-3">
                 <select id="d-yr" onchange="renderDash()" class="sel w-auto"><option value="All">All Years</option></select>
@@ -804,21 +804,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
                 <button onclick="exportBilling()" class="btn-primary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">download</span> Export</button>
               </div>
             </div>
-            <div class="card ts">
-              <table class="w-full text-left" style="min-width:700px">
-                <thead class="border-b border-ov/50 text-[11px] text-secondary uppercase tracking-wider font-bold font-mono bg-sclo">
-                  <tr>
-                    <th class="py-4 px-6">Asset ID</th>
-                    <th class="py-4 px-6">Date</th>
-                    <th class="py-4 px-6 text-right">Actual Duration</th>
-                    <th class="py-4 px-6 text-right">Expected Duration</th>
-                    <th class="py-4 px-6 text-right">Difference</th>
-                    <th class="py-4 px-6">Status</th>
-                  </tr>
-                </thead>
-                <tbody id="bbody" class="divide-y divide-ov/30 text-sm bg-scl"></tbody>
-              </table>
-            </div>
+            <div id="billing-container"></div>
           </div>
         </div>
 

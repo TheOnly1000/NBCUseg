@@ -150,34 +150,98 @@ function renderBillingView(){
   var mo=document.getElementById("b-mo")?.value||"All";
   var dtFrom=document.getElementById("b-date-from")?.value||"";
   var dtTo=document.getElementById("b-date-to")?.value||"";
-  var tb=document.getElementById("bbody");if(!tb)return;tb.innerHTML="";
+  var container=document.getElementById("billing-container");if(!container)return;container.innerHTML="";
   var assets=grpAssets(yr,mo);
-  if(!assets.length){tb.innerHTML='<tr><td colspan="6" class="p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</td></tr>';return}
+  if(!assets.length){container.innerHTML='<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';return}
   if(dtFrom||dtTo){
     var f=function(d){if(!d)return true;var dv=new Date(d);if(isNaN(dv))return true;if(dtFrom&&dv<new Date(dtFrom))return false;if(dtTo){var t=new Date(dtTo);t.setDate(t.getDate()+1);if(dv>=t)return false}return true};
     assets=assets.filter(function(a){return a.rows.some(function(r){return f(cleanDateString(r[0]))})})
   }
-  var totalActual=0,totalExpected=0,totalOvertime=0;
+  if(!assets.length){container.innerHTML='<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';return}
+  
+  // Group by year-month
+  var groups={};
   assets.forEach(function(a){
-    var actualSecs=a.rows.reduce(function(s,r){return s+toSec(r[9]||"")},0);
-    var expSecs=toSec("00:30:00");
-    var diff=actualSecs-expSecs;
-    var isOT=diff>0;
-    var displaySecs=isOT?diff:actualSecs;
-    var status=isOT?"Overtime":"Undertime";
-    var sc=isOT?"text-error font-bold":"text-green-600 font-bold";
-    totalActual+=actualSecs;totalExpected+=expSecs;if(isOT)totalOvertime+=diff;
-    var tr="<tr class='hover:bg-sclo smooth'>";
-    tr+="<td class='py-4 px-6'><span class='font-bold text-primary font-mono text-[15px]'>"+escHtml(a.id)+"</span><div class='text-[13px] font-medium truncate max-w-[250px] mt-1 text-secondary'>"+escHtml(a.title||"")+"</div></td>";
-    tr+="<td class='py-4 px-6 text-[13px] text-secondary font-mono'>"+fmtD(a.date)+"</td>";
-    tr+="<td class='py-4 px-6 text-right font-mono text-sm'>"+tcStr(actualSecs)+"</td>";
-    tr+="<td class='py-4 px-6 text-right font-mono text-sm text-secondary'>"+tcStr(expSecs)+"</td>";
-    tr+="<td class='py-4 px-6 text-right font-mono text-sm "+(isOT?"text-error":"text-green-600")+"'>"+(isOT?"+"+tcStr(diff):tcStr(diff))+"</td>";
-    tr+="<td class='py-4 px-6'><span class='px-2 py-0.5 rounded-md text-[10px] font-bold font-mono "+sc+"'>"+status+"</span></td>";
-    tr+="</tr>";
-    tb.innerHTML+=tr
+    var d=a.date?new Date(a.date):null;
+    var key=d&&!isNaN(d)?d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"):"Unknown";
+    if(!groups[key])groups[key]={label:key,name:d&&!isNaN(d)?d.toLocaleString("default",{month:"long",year:"numeric"}):"Unknown",assets:[],actual:0,expected:0,overtime:0};
+    groups[key].assets.push(a)
   });
-  tb.innerHTML+="<tr class='bg-sclo font-bold'><td class='py-4 px-6' colspan='2'>Total</td><td class='py-4 px-6 text-right font-mono'>"+tcStr(totalActual)+"</td><td class='py-4 px-6 text-right font-mono text-secondary'>"+tcStr(totalExpected)+"</td><td class='py-4 px-6 text-right font-mono text-error'>+"+tcStr(totalOvertime)+"</td><td class='py-4 px-6'></td></tr>"
+  var sortedKeys=Object.keys(groups).sort().reverse();
+  
+  var grandActual=0,grandExpected=0,grandOvertime=0;
+  
+  sortedKeys.forEach(function(key){
+    var g=groups[key];
+    // Calc group totals per asset
+    g.assets.forEach(function(a){
+      var actualSecs=a.rows.reduce(function(s,r){return s+toSec(r[9]||"")},0);
+      var expSecs=toSec("00:30:00");
+      var diff=actualSecs-expSecs;
+      var ot=diff>0?diff:0;
+      g.actual+=actualSecs;g.expected+=expSecs;g.overtime+=ot;
+      grandActual+=actualSecs;grandExpected+=expSecs;grandOvertime+=ot
+    });
+    
+    var isOpen=localStorage.getItem("bill_group_"+key)!=="closed";
+    
+    var section=document.createElement("div");
+    section.className="card ts overflow-hidden";
+    
+    // Header
+    var hdr=document.createElement("div");
+    hdr.className="flex items-center justify-between px-5 py-3 cursor-pointer select-none hover:bg-sclo smooth border-b border-ov/30";
+    hdr.setAttribute("data-bill-group",key);
+    hdr.onclick=function(){toggleBillingGroup(this.getAttribute("data-bill-group"))};
+    hdr.innerHTML='<div class="flex items-center gap-3"><span class="ms text-[20px] text-primary smooth transition-transform'+(isOpen?'':' -rotate-90')+'">expand_more</span><span class="font-bold text-[15px] text-on-surface">'+g.name+'</span><span class="text-xs text-secondary font-mono">'+g.assets.length+' asset'+(g.assets.length!==1?"s":"")+'</span></div><div class="flex items-center gap-6 text-sm font-mono"><span class="text-secondary">Actual: <strong class="text-on-surface">'+tcStr(g.actual)+'</strong></span><span class="text-secondary">Overtime: <strong class="text-error">+'+tcStr(g.overtime)+'</strong></span></div>';
+    section.appendChild(hdr);
+    
+    // Build table HTML as single string
+    var tableHtml='<table class="w-full text-left" style="min-width:700px"><thead class="border-b border-ov/50 text-[11px] text-secondary uppercase tracking-wider font-bold font-mono bg-sclo"><tr><th class="py-3 px-6">Asset ID</th><th class="py-3 px-6">Date</th><th class="py-3 px-6 text-right">Actual Duration</th><th class="py-3 px-6 text-right">Expected Duration</th><th class="py-3 px-6 text-right">Overtime</th></tr></thead><tbody class="divide-y divide-ov/30 text-sm bg-scl">';
+    
+    g.assets.forEach(function(a){
+      var actualSecs=a.rows.reduce(function(s,r){return s+toSec(r[9]||"")},0);
+      var expSecs=toSec("00:30:00");
+      var diff=actualSecs-expSecs;
+      var isOT=diff>0;
+      tableHtml+='<tr class="hover:bg-sclo smooth"><td class="py-3 px-6"><span class="font-bold text-primary font-mono text-[15px]">'+escHtml(a.id)+'</span><div class="text-[13px] font-medium truncate max-w-[250px] mt-0.5 text-secondary">'+escHtml(a.title||"")+'</div></td><td class="py-3 px-6 text-[13px] text-secondary font-mono">'+fmtD(a.date)+'</td><td class="py-3 px-6 text-right font-mono text-sm">'+tcStr(actualSecs)+'</td><td class="py-3 px-6 text-right font-mono text-sm text-secondary">'+tcStr(expSecs)+'</td><td class="py-3 px-6 text-right font-mono text-sm '+(isOT?"text-error font-bold":"text-secondary")+'">'+(isOT?"+"+tcStr(diff):"—")+'</td></tr>'
+    });
+    
+    tableHtml+='<tr class="bg-sclo font-bold border-t-2 border-ov/50"><td class="py-3 px-6" colspan="2">Group Total</td><td class="py-3 px-6 text-right font-mono">'+tcStr(g.actual)+'</td><td class="py-3 px-6 text-right font-mono text-secondary">'+tcStr(g.expected)+'</td><td class="py-3 px-6 text-right font-mono text-error">+'+tcStr(g.overtime)+'</td></tr>';
+    tableHtml+='</tbody></table>';
+    
+    var bodyWrap=document.createElement("div");
+    bodyWrap.className="smooth"+(isOpen?"":" hidden");
+    bodyWrap.id="bill-body-"+key;
+    bodyWrap.innerHTML=tableHtml;
+    section.appendChild(bodyWrap);
+    container.appendChild(section)
+  });
+  
+  // Grand total
+  var gt=document.createElement("div");
+  gt.className="card ts bg-sclo mt-4";
+  gt.innerHTML='<div class="flex items-center justify-between px-6 py-4"><span class="font-bold text-[16px] text-on-surface">Grand Total</span><div class="flex items-center gap-8 text-sm font-mono"><span class="text-secondary">Actual: <strong class="text-on-surface">'+tcStr(grandActual)+'</strong></span><span class="text-secondary">Expected: <strong class="text-on-surface">'+tcStr(grandExpected)+'</strong></span><span class="text-secondary">Overtime: <strong class="text-error">+'+tcStr(grandOvertime)+'</strong></span></div></div>';
+  container.appendChild(gt)
+}
+
+function toggleBillingGroup(key){
+  var body=document.getElementById("bill-body-"+key);
+  if(!body)return;
+  var parent=body.parentElement;
+  var hdr=parent?.querySelector('[data-bill-group="'+key+'"]');
+  var closed=body.classList.contains("hidden");
+  if(closed){
+    body.classList.remove("hidden");
+    localStorage.removeItem("bill_group_"+key);
+  }else{
+    body.classList.add("hidden");
+    localStorage.setItem("bill_group_"+key,"closed");
+  }
+  if(hdr){
+    var icon=hdr.querySelector(".ms");
+    if(icon)icon.classList.toggle("-rotate-90")
+  }
 }
 function exportBilling(){
   var assets=grpAssets();if(!assets.length){showToast("No assets","w");return}
