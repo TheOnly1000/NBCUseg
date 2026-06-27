@@ -134,7 +134,7 @@ function fetchScheduleFromSheet() {
     return fetchGoogleSheet("1yf8W7oDGmUlTMmRxDcgCTD8D-zHUH3lsYgZ5jVdaSXY", "0").then(function(data) {
         if (!data || !data.table || !data.table.rows) return [];
         var rows = data.table.rows;
-        var startIdx = data.table.parsedNumHeaders || 1;
+        var startIdx = 0;
         var today = new Date();
         var yr = today.getFullYear();
         // EDT buffer window: yesterday, today, tomorrow (EDT dates, matching the sheet)
