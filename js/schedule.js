@@ -62,20 +62,27 @@ function scheduleDbWrite() {
         if (e.id) obj.id = e.id;
         return obj;
     });
-    // Upsert: entries with existing id update in place (preserving assigned_to, 
-    // launched_asset_id, status), new entries get inserted
-    return sb.from("schedule_entries").upsert(payload, { onConflict: 'id', ignoreDuplicates: false }).then(function(res) {
-        if (res.error) throw new Error("Schedule upsert failed: " + res.error.message);
+    // Split: entries with id → upsert (update in place), entries without id → insert (new)
+    var toUpdate = payload.filter(function(p) { return p.id; });
+    var toInsert = payload.filter(function(p) { return !p.id; }).map(function(p) { var o = Object.assign({}, p); delete o.id; return o; });
+    var promises = [];
+    if (toUpdate.length) promises.push(sb.from("schedule_entries").upsert(toUpdate, { onConflict: 'id', ignoreDuplicates: false }));
+    if (toInsert.length) promises.push(sb.from("schedule_entries").insert(toInsert));
+    return Promise.all(promises).then(function(results) {
+        for (var i = 0; i < results.length; i++) {
+            if (results[i].error) throw new Error("Schedule write failed: " + results[i].error.message);
+        }
         // Update local cache with returned IDs so future upserts preserve them
-        if (res.data) {
+        var allData = [];
+        results.forEach(function(r) { if (r.data) allData = allData.concat(r.data); });
+        if (allData.length) {
             scheduleEntries.forEach(function(e) {
-                var match = res.data.find(function(r) {
+                var match = allData.find(function(r) {
                     return r.row_index === e.row_index && r.schedule_date === normDate(e.schedule_date);
                 });
                 if (match && match.id && !e.id) e.id = match.id;
             });
         }
-        return res;
     }).catch(function(err) {
         if (err && err.message && err.message.indexOf("policy") >= 0) {
             showToast("DB permission error. Run DELETE RLS policy SQL.", "e", 8000);
