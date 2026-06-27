@@ -130,7 +130,7 @@ function fetchScheduleFromSheet() {
     return fetchGoogleSheet("1yf8W7oDGmUlTMmRxDcgCTD8D-zHUH3lsYgZ5jVdaSXY", "0").then(function(data) {
         if (!data || !data.table || !data.table.rows) return [];
         var rows = data.table.rows;
-        var startIdx = data.table.parsedNumHeaders || 5;
+        var startIdx = data.table.parsedNumHeaders || 1;
         var today = new Date();
         var yr = today.getFullYear();
         // Compute IST window: today-2 to today+2 (IST dates)
@@ -144,6 +144,8 @@ function fetchScheduleFromSheet() {
         if (scheduleEntries.length) {
             scheduleEntries.forEach(function(e) { if (e.row_index) entryByRow[e.row_index] = e; });
         }
+        
+        var entries = [];
         
         for (var i = startIdx; i < rows.length; i++) {
             var rc = rows[i].c;
@@ -561,48 +563,93 @@ function _renderDashUpcomingImpl() {
     }
 }
 
-function renderDashUpcomingCards(entries, userEmail) {
-    var upcomingSection = document.getElementById("dash-upcoming-events");
-    var upcomingCards = document.getElementById("dash-upcoming-cards");
-    if (!upcomingSection || !upcomingCards) return;
-    
-        sortEntriesForDisplay(entries);
-    
-    if (entries.length > 0) {
-        upcomingSection.style.display = "block";
-        var html = "";
-        entries.forEach(function(entry) {
+function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
+    var container = document.getElementById(containerId);
+    if (!container) return { upcomingToday: 0, totalUpcoming: 0 };
+
+    if (entries.length === 0) {
+        container.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No schedule entries yet.</div>';
+        return { upcomingToday: 0, totalUpcoming: 0 };
+    }
+
+    var groups = {};
+    var today = todayIst();
+    var upcomingToday = 0;
+    var totalUpcoming = 0;
+
+    entries.forEach(function(entry) {
+        var d = entry.ist_date || entry.schedule_date;
+        if (!d) return;
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(entry);
+
+        var ct = getCountdownText(entry);
+        var isUpcoming = ct && ct !== "ENDED";
+        if (isUpcoming) totalUpcoming++;
+        if (d === today && isUpcoming) upcomingToday++;
+    });
+
+    var sortedDates = Object.keys(groups).sort();
+    var html = "";
+
+    sortedDates.forEach(function(dateStr) {
+        var groupEntries = sortEntriesForDisplay(groups[dateStr]);
+        var niceDate = formatDateShort(dateStr);
+
+        html += "<div class='col-span-full mb-1 mt-3 first:mt-0'>";
+        html += "<h3 class='text-sm font-bold text-on-surface flex items-center gap-2'>";
+        html += "<span class='ms text-[16px] text-primary'>calendar_month</span>";
+        html += niceDate + " IST";
+        html += " <span class='text-xs text-secondary font-normal'>(" + groupEntries.length + " events)</span>";
+        html += "</h3></div>";
+
+        groupEntries.forEach(function(entry) {
             var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
+            var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
+            var canLaunch = isAssignedToMe && !assetExists;
+            var istD2 = entry.ist_date || entry.schedule_date;
+            var cid2 = "cd-" + entry.row_index + "-" + istD2;
             var ti = getTypeInfo(entry.event_type);
-            var istD4 = entry.ist_date || entry.schedule_date;
-            var cid3 = "cd-" + entry.row_index + "-" + istD4 + "-dash";
-            html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2 min-w-0'>";
-            html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(istD4) + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
-                        html += "<div class='font-bold text-sm text-on-surface'>" + escHtml(entry.episode_title) + "</div>";
-            html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
 
-
+            html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
+            html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + niceDate + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
+            html += "<div class='font-bold text-sm text-on-surface truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</div>";
+            html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + (entry.segment_count ? " · " + entry.segment_count + " seg" : "") + "</div>";
             html += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
             html += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
-            var ct3 = getCountdownText(entry);
-            var ct3Display = ct3 === "ENDED" ? "ENDED" : (ct3 ? "upcoming in " + ct3 : "");
-            html += "<div class='text-[10px] font-mono' id='" + cid3 + "'>" + ct3Display + "</div>";
-            var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
-            if (isAssignedToMe && !assetExists) {
+            var ct2 = getCountdownText(entry);
+            var ct2Display = ct2 === "ENDED" ? "ENDED" : (ct2 ? "upcoming in " + ct2 : "");
+            html += "<div class='text-[10px] font-mono' id='" + cid2 + "'>" + ct2Display + "</div>";
+            if (canLaunch) {
                 html += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
             } else if (assetExists) {
                 html += "<button onclick=\"nav('editor'); loadToEditor('" + escHtml(entry.launched_asset_id) + "');\" class='btn-secondary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>open_in_new</span>Open</button>";
+            } else if (entry.assigned_to && !isAssignedToMe) {
+                var assignedName = entry.assigned_to;
+                var assignedInfo = getUserInfo(entry.assigned_to);
+                if (assignedInfo && assignedInfo.name) assignedName = assignedInfo.name;
+                html += "<div class='text-xs text-secondary mt-1 text-center'>Assigned to " + escHtml(assignedName) + "</div>";
             } else if (entry.assigned_to) {
-                var aName = entry.assigned_to;
-                var aInfo = getUserInfo(entry.assigned_to);
-                if (aInfo && aInfo.name) aName = aInfo.name;
-                html += "<div class='text-xs text-secondary mt-1 text-center'>Assigned to " + escHtml(aName) + "</div>";
+                html += "<div class='text-xs text-secondary mt-1 text-center italic'>Assigned to you</div>";
             } else {
                 html += "<div class='text-xs text-secondary mt-1 text-center italic'>Unassigned</div>";
             }
             html += "</div>";
         });
-        upcomingCards.innerHTML = html;
+    });
+
+    container.innerHTML = html;
+    return { upcomingToday: upcomingToday, totalUpcoming: totalUpcoming };
+}
+
+function renderDashUpcomingCards(entries, userEmail) {
+    var upcomingSection = document.getElementById("dash-upcoming-events");
+    var upcomingCards = document.getElementById("dash-upcoming-cards");
+    if (!upcomingSection || !upcomingCards) return;
+
+    if (entries.length > 0) {
+        upcomingSection.style.display = "block";
+        renderUpcomingCardsGrouped(entries, "dash-upcoming-cards", userEmail);
     } else {
         upcomingSection.style.display = "none";
     }
@@ -783,44 +830,12 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><sp
     });
     tbody.innerHTML = html;
     
-    // Upcoming cards — show all entries from cache
-    if (upcomingCards) {
-        if (scheduleEntries.length > 0) {
-            var cardsHtml = "";
-            scheduleEntries.forEach(function(entry) {
-                var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
-                var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
-                var canLaunch = isAssignedToMe && !assetExists;
-                var istD2 = entry.ist_date || entry.schedule_date;
-                var cid2 = "cd-" + entry.row_index + "-" + istD2;
-                cardsHtml += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
-                var ti = getTypeInfo(entry.event_type);
-                cardsHtml += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(istD2) + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
-                cardsHtml += "<div class='font-bold text-sm text-on-surface truncate'>" + escHtml(entry.episode_title) + "</div>";
-                cardsHtml += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
-                cardsHtml += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
-                cardsHtml += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
-                var ct2 = getCountdownText(entry);
-                var ct2Display = ct2 === "ENDED" ? "ENDED" : (ct2 ? "upcoming in " + ct2 : "");
-                cardsHtml += "<div class='text-[10px] font-mono' id='" + cid2 + "'>" + ct2Display + "</div>";
-                if (canLaunch) {
-                    cardsHtml += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
-                } else if (assetExists) {
-                    cardsHtml += "<button onclick=\"nav('editor'); loadToEditor('" + escHtml(entry.launched_asset_id) + "');\" class='btn-secondary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>open_in_new</span>Open</button>";
-                } else if (entry.assigned_to) {
-                    var assignedName = entry.assigned_to;
-                    var assignedInfo = getUserInfo(entry.assigned_to);
-                    if (assignedInfo && assignedInfo.name) assignedName = assignedInfo.name;
-                    cardsHtml += "<div class='text-xs text-secondary mt-1 text-center'>Assigned to " + escHtml(assignedName) + "</div>";
-                } else {
-                    cardsHtml += "<div class='text-xs text-secondary mt-1 text-center italic'>Unassigned</div>";
-                }
-                cardsHtml += "</div>";
-            });
-            upcomingCards.innerHTML = cardsHtml;
-        } else {
-            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No schedule entries yet. Sync from sheet to load data.</div>';
-        }
+    // Upcoming cards grouped by date
+    var userEmail2 = (currentUser && currentUser.email || "").toLowerCase();
+    var stats = renderUpcomingCardsGrouped(scheduleEntries, "schedule-upcoming-cards", userEmail2);
+    var statsEl = document.getElementById("schedule-stats");
+    if (statsEl) {
+        statsEl.textContent = stats.upcomingToday + " upcoming today · " + stats.totalUpcoming + " total upcoming";
     }
 }
 
