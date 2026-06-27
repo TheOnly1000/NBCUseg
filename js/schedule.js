@@ -40,7 +40,7 @@ function scheduleDbWrite() {
     var rows = scheduleEntries;
     if (rows.length === 0) return Promise.resolve();
     var payload = rows.map(function(e) {
-        return {
+        var obj = {
             row_index: e.row_index,
             schedule_date: normDate(e.schedule_date),
             ist_date: e.ist_date || normDate(e.schedule_date),
@@ -59,19 +59,23 @@ function scheduleDbWrite() {
             launched_asset_id: e.launched_asset_id || "",
             segment_count: e.segment_count || ""
         };
+        if (e.id) obj.id = e.id;
+        return obj;
     });
-    // Delete ALL existing rows, then insert fresh
-    return sb.from("schedule_entries").select("id").then(function(idResult) {
-        if (idResult.error) throw new Error("Read existing IDs failed: " + idResult.error.message);
-        var existingIds = (idResult.data || []).map(function(r){return r.id});
-        var delPromise = existingIds.length ? sb.from("schedule_entries").delete().in("id", existingIds) : Promise.resolve({error:null});
-        return delPromise.then(function(delResult) {
-            if (delResult && delResult.error) throw new Error("Delete by ID failed: " + delResult.error.message);
-            return sb.from("schedule_entries").insert(payload);
-        });
-    }).then(function(insResult) {
-        if (insResult.error) throw new Error("Schedule insert failed: " + insResult.error.message);
-        return insResult;
+    // Upsert: entries with existing id update in place (preserving assigned_to, 
+    // launched_asset_id, status), new entries get inserted
+    return sb.from("schedule_entries").upsert(payload, { onConflict: 'id', ignoreDuplicates: false }).then(function(res) {
+        if (res.error) throw new Error("Schedule upsert failed: " + res.error.message);
+        // Update local cache with returned IDs so future upserts preserve them
+        if (res.data) {
+            scheduleEntries.forEach(function(e) {
+                var match = res.data.find(function(r) {
+                    return r.row_index === e.row_index && r.schedule_date === normDate(e.schedule_date);
+                });
+                if (match && match.id && !e.id) e.id = match.id;
+            });
+        }
+        return res;
     }).catch(function(err) {
         if (err && err.message && err.message.indexOf("policy") >= 0) {
             showToast("DB permission error. Run DELETE RLS policy SQL.", "e", 8000);
@@ -136,6 +140,7 @@ function fetchScheduleFromSheet() {
         // EDT buffer window: yesterday, today, tomorrow (EDT dates, matching the sheet)
         var edtStart = addDays(todayEdt(), -1);
         var edtEnd = addDays(todayEdt(), 1);
+        console.log("fetchScheduleFromSheet: total rows=" + rows.length + ", startIdx=" + startIdx + ", parsedNumHeaders=" + data.table.parsedNumHeaders + ", edtWindow=" + edtStart + " to " + edtEnd);
         var entryByRow = {};
         // First, load existing entries by row_index so we can merge
         if (scheduleEntries.length) {
@@ -143,10 +148,11 @@ function fetchScheduleFromSheet() {
         }
         
         var entries = [];
+        var _debug = { skippedLen: 0, skippedNoDate: 0, skippedEdt: 0, skippedNoSeries: 0 };
         
         for (var i = startIdx; i < rows.length; i++) {
             var rc = rows[i].c;
-            if (!rc || rc.length < 6) continue;
+            if (!rc || rc.length < 6) { _debug.skippedLen++; continue; }
             var dateVal = rc[0] ? gvizCellValue(rc[0]) : "";
             var typeVal = rc[1] ? gvizCellValue(rc[1]) : "";
             var seriesVal = rc[2] ? gvizCellValue(rc[2]) : "";
@@ -157,10 +163,10 @@ function fetchScheduleFromSheet() {
             var timeInFmt = rc[7] ? gvizCellValue(rc[7]) : "";
             var timeOutFmt = rc[8] ? gvizCellValue(rc[8]) : "";
             var sheetAssetId = rc[13] ? gvizCellValue(rc[13]) : "";
-            if (!dateVal || !seriesVal) continue;
+            if (!dateVal || !seriesVal) { _debug.skippedNoSeries++; if (!dateVal) _debug.skippedNoDate++; continue; }
             var cleanDate = parseSheetDate(dateVal, yr);
             // Filter by EDT date range (wider to cover IST shift)
-            if (!cleanDate || cleanDate < edtStart || cleanDate > edtEnd) continue;
+            if (!cleanDate || cleanDate < edtStart || cleanDate > edtEnd) { _debug.skippedEdt++; continue; }
             
             var timeIn24 = time12to24(timeInFmt);
             var timeOut24 = time12to24(timeOutFmt);
@@ -188,6 +194,7 @@ function fetchScheduleFromSheet() {
                 segment_count: segCountVal
             });
         }
+        console.log("fetchScheduleFromSheet: entries=" + entries.length, _debug);
         return entries;
     });
 }
