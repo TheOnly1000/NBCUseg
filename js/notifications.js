@@ -102,7 +102,9 @@ function renderNotifications(notifs) {
             n.notification_type === "handover_accepted" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#16a34a">check</span>' :
             n.notification_type === "handover_given" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#2563eb">forward</span>' :
             n.notification_type === "ticket_comment" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#8b5cf6">chat</span>' :
-            n.notification_type === "ticket" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#f59e0b">confirmation_number</span>' : '';
+            n.notification_type === "ticket" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#f59e0b">confirmation_number</span>' :
+            n.notification_type === "schedule_assignment" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#3b82f6">assignment</span>' :
+            n.notification_type === "schedule_alert" ? '<span class="ms" style="font-size:14px;vertical-align:middle;color:#ef4444">timer</span>' : '';
         var readersHtml = "";
         if (n._readers && n._readers.length) {
             var maxReaders = 5;
@@ -121,6 +123,7 @@ function renderNotifications(notifs) {
             (n.notification_type === "handover_request" ? '<button onclick="event.stopPropagation();directHandoverFromNotif(\'' + aid + '\',\'' + escHtml(n.from_email || "") + '\')" class="btn-primary text-xs px-3 py-1 mt-2">Give Handover</button>' : "") +
             (n.notification_type === "handover_given" ? '<button onclick="event.stopPropagation();directTakeHandover(\'' + aid + '\')" class="btn-primary text-xs px-3 py-1 mt-2">Take Handover</button>' : "") +
             (n.notification_type === "ticket" || n.notification_type === "ticket_comment" ? '<button onclick="event.stopPropagation();directOpenTicket(\'' + tid + '\')" class="btn-primary text-xs px-3 py-1 mt-2">' + (n.notification_type === "ticket_comment" ? "Open" : "Open Ticket") + '</button>' : "") +
+            (n.notification_type === "schedule_assignment" || n.notification_type === "schedule_alert" ? '<button onclick="event.stopPropagation();nav(\'schedule\')" class="btn-secondary text-xs px-3 py-1 mt-2">Open Schedule</button>' : "") +
             '</div>' +
             '<span onclick="event.stopPropagation();clearNotif(\'' + nid + '\')" style="font-size:16px;color:var(--c-secondary);cursor:pointer;flex-shrink:0" title="Dismiss" class="ms">close</span>' +
         '</div>';
@@ -206,7 +209,9 @@ function handleNotifClick(notifId, assetId, ticketId, notifType) {
     sb.from("notification_reads").insert({notification_id: Number(notifId), user_email: currentUser.email||""}).then(function(){});
     sb.from("notifications").update({read: true}).eq("id", notifId).then(function(){});
     // Redirect based on content type
-    if (assetId && assetId !== "null" && assetId !== "undefined") {
+    if (notifType === "schedule_assignment" || notifType === "schedule_alert") {
+        nav("schedule");
+    } else if (assetId && assetId !== "null" && assetId !== "undefined") {
         nav("editor");
         loadToEditor(assetId);
         if (notifType === "handover_request" || notifType === "handover_given") {
@@ -223,8 +228,9 @@ function handleNotifClick(notifId, assetId, ticketId, notifType) {
                 setTimeout(function(){openTicketDetail(ticketId)}, 300);
             });
         }
+    } else if (notifType === "schedule_assignment" || notifType === "schedule_alert") {
+        nav("schedule");
     } else {
-        // Unknown type — navigate to dashboard
         nav("dashboard");
     }
 }

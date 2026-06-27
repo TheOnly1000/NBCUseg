@@ -39,8 +39,14 @@ function scheduleDbRead(dateFilter) {
 function scheduleDbWrite() {
     var rows = scheduleEntries;
     if (rows.length === 0) return Promise.resolve();
+    // Collect unique dates in the buffer
+    var dateSet = {};
+    rows.forEach(function(e) { dateSet[normDate(e.schedule_date)] = true; });
+    var dates = Object.keys(dateSet);
+    
+    // Build insert payload (no id — let DB auto-generate)
     var payload = rows.map(function(e) {
-        var obj = {
+        return {
             row_index: e.row_index,
             schedule_date: normDate(e.schedule_date),
             ist_date: e.ist_date || normDate(e.schedule_date),
@@ -59,30 +65,61 @@ function scheduleDbWrite() {
             launched_asset_id: e.launched_asset_id || "",
             segment_count: e.segment_count || ""
         };
-        if (e.id) obj.id = e.id;
-        return obj;
     });
-    // Split: entries with id → upsert (update in place), entries without id → insert (new)
-    var toUpdate = payload.filter(function(p) { return p.id; });
-    var toInsert = payload.filter(function(p) { return !p.id; }).map(function(p) { var o = Object.assign({}, p); delete o.id; return o; });
-    var promises = [];
-    if (toUpdate.length) promises.push(sb.from("schedule_entries").upsert(toUpdate, { onConflict: 'id', ignoreDuplicates: false }));
-    if (toInsert.length) promises.push(sb.from("schedule_entries").insert(toInsert));
-    return Promise.all(promises).then(function(results) {
-        for (var i = 0; i < results.length; i++) {
-            if (results[i].error) throw new Error("Schedule write failed: " + results[i].error.message);
-        }
-        // Update local cache with returned IDs so future upserts preserve them
-        var allData = [];
-        results.forEach(function(r) { if (r.data) allData = allData.concat(r.data); });
-        if (allData.length) {
-            scheduleEntries.forEach(function(e) {
-                var match = allData.find(function(r) {
-                    return r.row_index === e.row_index && r.schedule_date === normDate(e.schedule_date);
-                });
-                if (match && match.id && !e.id) e.id = match.id;
+    
+    // Step 1: Save any assigned/launched entries from OUTSIDE the window before wiping everything
+    return sb.from("schedule_entries").select("*").then(function(allRes) {
+        var preserved = [];
+        if (!allRes.error) {
+            var cutoff = addDays(todayEdt(), -7);
+            allRes.data.forEach(function(r) {
+                var rDate = normDate(r.schedule_date);
+                if ((r.assigned_to || r.launched_asset_id) && dates.indexOf(rDate) < 0 && rDate >= cutoff) {
+                    preserved.push(r);
+                }
             });
         }
+        return preserved;
+    }).then(function(preserved) {
+        // Step 2: Delete EVERYTHING from the table (clean slate)
+        return sb.from("schedule_entries").delete().gt("id", -1).then(function(delRes) {
+            if (delRes.error) throw new Error("Schedule delete all failed: " + delRes.error.message);
+            return preserved;
+        });
+    }).then(function(preserved) {
+        // Step 3: Insert current window data
+        var chain = Promise.resolve();
+        if (payload.length) {
+            chain = sb.from("schedule_entries").insert(payload).select().then(function(insResult) {
+                if (insResult.error) throw new Error("Schedule insert failed: " + insResult.error.message);
+            });
+        }
+        // Step 4: Re-insert preserved assigned/launched entries from outside the window
+        if (preserved.length) {
+            var reInsert = preserved.map(function(r) {
+                return { row_index: r.row_index, schedule_date: r.schedule_date, ist_date: r.ist_date || r.schedule_date, event_type: r.event_type, series_name: r.series_name || "", episode_title: r.episode_title || "", season_no: r.season_no, episode_no: r.episode_no, sheet_asset_id: r.sheet_asset_id || "", start_time_edt: r.start_time_edt, end_time_edt: r.end_time_edt, start_time_ist: r.start_time_ist || "", end_time_ist: r.end_time_ist || "", assigned_to: r.assigned_to || "", status: r.status || "pending", launched_asset_id: r.launched_asset_id || "", segment_count: r.segment_count || "" };
+            });
+            chain = chain.then(function() {
+                return sb.from("schedule_entries").insert(reInsert);
+            });
+        }
+        return chain.then(function() {
+            return preserved;
+        });
+    }).then(function() {
+        // Step 5: Reload from DB to get fresh IDs for current window
+        return sb.from("schedule_entries").select("*").in("schedule_date", dates);
+    }).then(function(loadResult) {
+        if (loadResult.error) throw new Error("Schedule reload failed: " + loadResult.error.message);
+        if (loadResult.data) {
+            scheduleEntries.forEach(function(e) {
+                var match = loadResult.data.find(function(r) {
+                    return r.row_index === e.row_index && r.schedule_date === normDate(e.schedule_date);
+                });
+                if (match && match.id) e.id = match.id;
+            });
+        }
+        return loadResult;
     }).catch(function(err) {
         if (err && err.message && err.message.indexOf("policy") >= 0) {
             showToast("DB permission error. Run DELETE RLS policy SQL.", "e", 8000);
@@ -144,10 +181,12 @@ function fetchScheduleFromSheet() {
         var startIdx = 0;
         var today = new Date();
         var yr = today.getFullYear();
-        // EDT buffer window: yesterday, today, tomorrow (EDT dates, matching the sheet)
-        var edtStart = addDays(todayEdt(), -1);
-        var edtEnd = addDays(todayEdt(), 1);
-        console.log("fetchScheduleFromSheet: total rows=" + rows.length + ", startIdx=" + startIdx + ", parsedNumHeaders=" + data.table.parsedNumHeaders + ", edtWindow=" + edtStart + " to " + edtEnd);
+        // If a date filter is set, center the window on that date; otherwise use today
+        var dp = document.getElementById("schedule-date-filter");
+        var centerDate = dp && dp.value ? dp.value : todayEdt();
+        var edtStart = addDays(centerDate, -1);
+        var edtEnd = addDays(centerDate, 1);
+        console.log("fetchScheduleFromSheet: total rows=" + rows.length + ", startIdx=" + startIdx + ", parsedNumHeaders=" + data.table.parsedNumHeaders + ", centerDate=" + centerDate + ", edtWindow=" + edtStart + " to " + edtEnd);
         var entryByRow = {};
         // First, load existing entries by row_index so we can merge
         if (scheduleEntries.length) {
@@ -218,25 +257,29 @@ function syncScheduleFromSheet() {
     fetchScheduleFromSheet().then(function(entries) {
         if (entries.length === 0) { hideLoader(); showToast("No entries found in the buffer window.", "e"); return; }
         
-        // Merge with existing DB entries (preserve assignments from both local and DB)
+        // Merge with existing entries — only keep those still within the buffer window
+        var _edtStart = addDays(todayEdt(), -1);
+        var _edtEnd = addDays(todayEdt(), 1);
         var merged = {};
         entries.forEach(function(e) { merged[e.row_index] = e; });
-        // Also merge any existing entries NOT in the new sheet data (they may be from previous days still in window)
+        // Keep existing entries still within the EDT buffer window (preserves assignments)
         scheduleEntries.forEach(function(e) {
-            if (e.row_index && !merged[e.row_index]) {
+            if (e.row_index && !merged[e.row_index] && e.schedule_date >= _edtStart && e.schedule_date <= _edtEnd) {
                 merged[e.row_index] = e;
             }
         });
         
         scheduleEntries = sortEntriesForDisplay(Object.values(merged));
         
-        // Write to DB, then clean up old entries
+        // Write to DB (also cleans up stale entries outside the window)
         scheduleDbWrite().then(function() {
-            return scheduleCleanupWindow();
-        }).then(function() {
             hideLoader();
             renderSchedule(); renderDash();
-            showToast("Synced " + entries.length + " entries in buffer.", "s");
+            // Count per date for the toast
+            var dateCounts = {};
+            entries.forEach(function(e) { var d = e.schedule_date; dateCounts[d] = (dateCounts[d] || 0) + 1; });
+            var countsStr = Object.keys(dateCounts).sort().map(function(d) { return d + ": " + dateCounts[d]; }).join(", ");
+            showToast("Synced " + entries.length + " entries (" + countsStr + ")", "s");
         }).catch(function(err) {
             hideLoader();
             renderSchedule(); renderDash();
@@ -329,11 +372,27 @@ function scheduleRenderAll() {
 function clearScheduleFilter() {
   var dp = document.getElementById("schedule-date-filter");
   if (dp) {
-    var today = new Date();
-    dp.value = today.getFullYear() + "-" + ("0"+(today.getMonth()+1)).slice(-2) + "-" + ("0"+today.getDate()).slice(-2);
+    dp.value = "";
   }
   renderSchedule();
 }
+
+function filterDay(offset) {
+  var dp = document.getElementById("schedule-date-filter");
+  if (!dp) return;
+  var d = new Date();
+  d.setDate(d.getDate() + offset);
+  dp.value = d.getFullYear() + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0"+d.getDate()).slice(-2);
+  renderSchedule();
+}
+
+// Wire date filter onchange: just re-render with the new window
+(function() {
+  var dp = document.getElementById("schedule-date-filter");
+  if (dp) {
+    dp.addEventListener("change", renderSchedule);
+  }
+})();
 
 function loadScheduleFromDb(silent) {
     if(!silent)showGlobalLoader(true);
@@ -366,10 +425,6 @@ function loadScheduleFromDb(silent) {
         });
         sortEntriesForDisplay(scheduleEntries);
         if(!silent)showGlobalLoader(false);
-        // Filter to EDT buffer window on load
-        scheduleEntries = scheduleEntries.filter(function(e) {
-            return e.schedule_date >= addDays(todayEdt(), -1) && e.schedule_date <= addDays(todayEdt(), 1);
-        });
     }).catch(function(e){console.warn("loadScheduleFromDb error:",e);if(!silent)showGlobalLoader(false)}).then(function(){scheduleRenderAll()});
 }
 
@@ -381,11 +436,14 @@ function renderSchedule() {
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
     if (!tbody) return;
     
-    // Filter by EDT date: yesterday, today, tomorrow
-    var edtStart = addDays(todayEdt(), -1);
-    var edtEnd = addDays(todayEdt(), 1);
+    // If a date is selected, show 3-day window centered on it; otherwise show today's buffer
+    var dp = document.getElementById("schedule-date-filter");
+    var filterDate = dp && dp.value ? dp.value : "";
+    var center = filterDate || todayEdt();
+    var winStart = addDays(center, -1);
+    var winEnd = addDays(center, 1);
     var filtered = scheduleEntries.filter(function(e) {
-        return e.schedule_date >= edtStart && e.schedule_date <= edtEnd;
+        return e.schedule_date >= winStart && e.schedule_date <= winEnd;
     });
     
     if (filtered.length === 0) {
@@ -431,12 +489,32 @@ function updateScheduleAssignment(rowIndex, assignedTo) {
         }
     }
     if (!entry) return;
+    var prevAssigned = entry.assigned_to;
+    var curEmail = (currentUser && currentUser.email || "").toLowerCase();
     entry.assigned_to = assignedTo;
     entry.status = assignedTo ? "assigned" : "pending";
+    var assignerName = getUserInfo(curEmail)?.name || currentUser?.name || curEmail.split("@")[0];
     sb.from("schedule_entries").update({ assigned_to: assignedTo, status: entry.status, updated_at: new Date().toISOString() })
         .eq("row_index", rowIndex).eq("schedule_date", entry.schedule_date)
         .then(function(result) {
             if (result.error) { showToast("Failed to update assignment: " + result.error.message, "e"); return; }
+            // Notify newly assigned user (skip self-assignment)
+            var assignEmail = (assignedTo || "").toLowerCase();
+            if (assignedTo && assignEmail !== curEmail && assignEmail !== (prevAssigned || "").toLowerCase()) {
+                var assigneeName = getUserInfo(assignEmail)?.name || assignEmail.split("@")[0];
+                var title = entry.episode_title || entry.series_name || "Schedule entry";
+                var msg = "Hey " + assigneeName + ", " + assignerName + " assigned you \"" + title + "\" on " + (entry.schedule_date || "");
+                sb.from("notifications").insert({
+                    target_email: assignEmail,
+                    from_user: assignerName,
+                    from_email: curEmail,
+                    asset_id: entry.sheet_asset_id || entry.launched_asset_id || "",
+                    message: msg,
+                    notification_type: "schedule_assignment",
+                    created_at: new Date().toISOString(),
+                    read: false
+                });
+            }
         });
     renderSchedule();
     renderDash();
@@ -604,7 +682,8 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
         groupEntries.forEach(function(entry) {
             var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
             var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
-            var canLaunch = isAssignedToMe && !assetExists;
+            var _ctEnded = getCountdownText(entry) === "ENDED";
+            var canLaunch = isAssignedToMe && !assetExists && !_ctEnded;
             var istD2 = entry.ist_date || entry.schedule_date;
             var cid2 = "cd-" + entry.row_index + "-" + istD2;
             var ti = getTypeInfo(entry.event_type);
@@ -616,8 +695,9 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
             html += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
             html += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
             var ct2 = getCountdownText(entry);
-            var ct2Display = ct2 === "ENDED" ? "ENDED" : (ct2 ? "upcoming in " + ct2 : "");
-            html += "<div class='text-[10px] font-mono' id='" + cid2 + "'>" + ct2Display + "</div>";
+            var ct2Class = ct2 === "ENDED" ? "text-[10px] font-mono border border-secondary/30 px-2 py-0.5 rounded text-secondary" : (ct2 === "RUNNING" ? "text-[10px] font-bold border border-error/30 px-2 py-0.5 rounded text-error" : (ct2 ? "text-[10px] font-mono border border-primary/30 px-2 py-0.5 rounded text-primary" : ""));
+            var ct2Display = ct2 === "ENDED" ? "ENDED" : (ct2 === "RUNNING" ? "RUNNING" : (ct2 ? "upcoming in " + ct2 : ""));
+            html += "<div class='" + ct2Class + "' id='" + cid2 + "'>" + ct2Display + "</div>";
             if (canLaunch) {
                 html += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
             } else if (assetExists) {
@@ -665,20 +745,34 @@ var _countdown5minWarned = {};
 
 function getCountdownText(entry) {
     var startIst = entry.start_time_ist || entry.start_time_edt || "";
+    var endIst = entry.end_time_ist || entry.end_time_edt || "";
     var istDate = entry.ist_date || entry.schedule_date || "";
     if (!startIst || !istDate) return "";
-    var parts = startIst.split(":");
-    var h = parseInt(parts[0]) || 0;
-    var m = parseInt(parts[1]) || 0;
-    // Construct as IST date + IST time → parse as UTC to avoid local tz shift
-    var target = new Date(istDate + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00+05:30");
-    var diff = target.getTime() - Date.now();
-    if (diff <= 0) return "ENDED";
-    var secs = Math.floor(diff / 1000);
-    var hh = Math.floor(secs / 3600);
-    var mm = Math.floor((secs % 3600) / 60);
-    var ss = secs % 60;
-    return ("0"+hh).slice(-2) + ":" + ("0"+mm).slice(-2) + ":" + ("0"+ss).slice(-2);
+    var now = Date.now();
+    
+    // Start target
+    var sp = startIst.split(":");
+    var sh = parseInt(sp[0]) || 0, sm = parseInt(sp[1]) || 0;
+    var startTarget = new Date(istDate + "T" + ("0"+sh).slice(-2) + ":" + ("0"+sm).slice(-2) + ":00+05:30");
+    var startDiff = startTarget.getTime() - now;
+    
+    // Before start → countdown
+    if (startDiff > 0) {
+        var secs = Math.floor(startDiff / 1000);
+        return ("0"+Math.floor(secs/3600)).slice(-2) + ":" + ("0"+Math.floor((secs%3600)/60)).slice(-2) + ":" + ("0"+secs%60).slice(-2);
+    }
+    
+    // After start → check end time
+    if (endIst) {
+        var ep = endIst.split(":");
+        var eh = parseInt(ep[0]) || 0, em = parseInt(ep[1]) || 0;
+        var endTarget = new Date(istDate + "T" + ("0"+eh).slice(-2) + ":" + ("0"+em).slice(-2) + ":00+05:30");
+        // If end time ≤ start time, end is on the next IST day
+        if (endTarget <= startTarget) endTarget = new Date(endTarget.getTime() + 86400000);
+        if (endTarget.getTime() > now) return "RUNNING";
+    }
+    
+    return "ENDED";
 }
 
 function shouldWarn5min(entry) {
@@ -739,13 +833,16 @@ function updateCountdowns() {
                 var text = getCountdownText(entry);
                 if (entry.launched_asset_id && globalSegments[entry.launched_asset_id]) {
                     el.textContent = "Launched";
-                    el.className = "text-[10px] text-success font-bold";
+                    el.className = "text-[10px] text-success font-bold border border-success/30 px-2 py-0.5 rounded";
                 } else if (text === "ENDED") {
                     el.textContent = "ENDED";
-                    el.className = "text-[10px] text-secondary";
+                    el.className = "text-[10px] text-secondary font-mono border border-secondary/30 px-2 py-0.5 rounded";
+                } else if (text === "RUNNING") {
+                    el.textContent = "RUNNING";
+                    el.className = "text-[10px] text-error font-bold border border-error/30 px-2 py-0.5 rounded";
                 } else if (text) {
                     el.textContent = "upcoming in " + text;
-                    el.className = "text-[10px] text-primary font-mono";
+                    el.className = "text-[10px] text-primary font-mono border border-primary/30 px-2 py-0.5 rounded";
                 } else {
                     el.textContent = "";
                 }
@@ -777,7 +874,8 @@ function renderScheduleTable(entries) {
     entries.forEach(function(entry, idx) {
         var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
         var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
-        var canLaunch = isAssignedToMe && !assetExists;
+        var _ctEnded2 = getCountdownText(entry) === "ENDED";
+        var canLaunch = isAssignedToMe && !assetExists && !_ctEnded2;
         var launched = assetExists;
         var istDate = entry.ist_date || entry.schedule_date;
         var cid = "cd-" + entry.row_index + "-" + istDate;
@@ -789,8 +887,9 @@ function renderScheduleTable(entries) {
         html += "<td class='p-3 text-secondary font-mono text-xs'>S" + escHtml(entry.season_no) + "/E" + escHtml(entry.episode_no) + "</td>";
         html += "<td class='p-3 text-center font-mono text-xs text-secondary'>" + (entry.segment_count || "—") + "</td>";
         var ct = getCountdownText(entry);
-        var ctDisplay = ct === "ENDED" ? "ENDED" : (ct ? "upcoming in " + ct : "");
-html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><span class='text-primary'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</span><br><span id='" + cid + "' class='text-[10px] text-primary font-mono'>" + ctDisplay + "</span></td>";
+        var ctClass = ct === "ENDED" ? "text-secondary border border-secondary/30 px-2 py-0.5 rounded" : (ct === "RUNNING" ? "text-error font-bold border border-error/30 px-2 py-0.5 rounded" : (ct ? "text-primary font-mono border border-primary/30 px-2 py-0.5 rounded" : ""));
+        var ctDisplay = ct === "ENDED" ? "ENDED" : (ct === "RUNNING" ? "RUNNING" : (ct ? "upcoming in " + ct : ""));
+html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><span class='text-primary'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</span><br><span id='" + cid + "' class='text-[10px] " + ctClass + "'>" + ctDisplay + "</span></td>";
         var ti2 = getTypeInfo(entry.event_type);
         html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
         html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
@@ -828,9 +927,9 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><sp
     });
     tbody.innerHTML = html;
     
-    // Upcoming cards grouped by date
+    // Upcoming cards grouped by date (same filtered window as table)
     var userEmail2 = (currentUser && currentUser.email || "").toLowerCase();
-    var stats = renderUpcomingCardsGrouped(scheduleEntries, "schedule-upcoming-cards", userEmail2);
+    var stats = renderUpcomingCardsGrouped(entries, "schedule-upcoming-cards", userEmail2);
     var statsEl = document.getElementById("schedule-stats");
     if (statsEl) {
         statsEl.textContent = stats.upcomingToday + " upcoming today · " + stats.totalUpcoming + " total upcoming";

@@ -474,7 +474,9 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
               </div>
               <div class="flex items-center gap-3">
                 <input type="date" id="schedule-date-filter" class="sel text-sm py-2 px-3 w-[160px]">
-                <button onclick="clearScheduleFilter()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Today</button>
+                <button onclick="filterDay(-1)" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">chevron_left</span> Yesterday</button>
+                <button onclick="clearScheduleFilter()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">today</span> Today</button>
+                <button onclick="filterDay(1)" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1">Tomorrow <span class="ms text-[14px]">chevron_right</span></button>
                 <button onclick="syncScheduleFromSheet()" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">sync</span>Sync from Sheet</button>
               </div>
             </div>
