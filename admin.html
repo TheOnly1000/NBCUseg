@@ -31,6 +31,7 @@ tr:hover{background:#f1f5f9}
 .badge-editor{background:#003ec7;color:#fff}
 .badge-viewer{background:#64748b;color:#fff}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .au{animation:fadeUp .3s ease both}
 #toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .tk{display:flex;align-items:center;gap:10px;background:#fff;padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.15);border:1px solid var(--border);pointer-events:auto;animation:toastIn .3s both}
@@ -79,6 +80,16 @@ tr:hover{background:#f1f5f9}
       <div id="no-users" style="display:none;text-align:center;padding:24px;color:var(--text2)">No users found.</div>
     </div>
 
+    <div class="card" style="margin-bottom:20px">
+      <h2 style="font-size:16px;font-weight:700;margin:0 0 4px">Thumbnail Manager</h2>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 16px">Upload or replace show thumbnails. Click the image to upload a new one.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="thumb-search" class="inp" style="flex:1" placeholder="Search shows..." oninput="renderThumbnailList()">
+      </div>
+      <div id="thumbnail-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+      <div id="no-thumbs" style="display:none;text-align:center;padding:24px;color:var(--text2)">No shows found.</div>
+    </div>
+
     <div class="card" id="audit-section" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <h2 style="font-size:16px;font-weight:700;margin:0">Audit Log</h2>
@@ -101,7 +112,7 @@ tr:hover{background:#f1f5f9}
 <script>
 const SUPABASE_URL = "https://fzbktwyurskhvtwkklzu.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDIwODEsImV4cCI6MjA5Nzg3ODA4MX0.MEZzsQ7BHs_Jh2wozEkJVml43T599w0PkG9GH8aAyUM";
-const ADMIN_PASS = "6969";
+const ADMIN_PASS = "6776";
 
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -119,6 +130,7 @@ function authAdmin() {
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("main-screen").style.display = "block";
     loadUsers();
+    loadThumbnailManager();
     st("Authenticated as Admin", "s");
   } else {
     st("Invalid password", "e");
@@ -200,6 +212,131 @@ async function loadAuditLogs() {
 
 function closeAuditLogs() {
   document.getElementById("audit-section").style.display = "none";
+}
+
+// ============ THUMBNAIL MANAGER ============
+var allShowTitles = [];
+var thumbnailData = {};
+
+async function loadThumbnailManager() {
+  // Get all unique titles from segments
+  var { data: segments, error } = await sb.from("segments").select("title");
+  if (error) { st("Error loading shows: " + error.message, "e"); return; }
+  var seen = {};
+  allShowTitles = [];
+  (segments || []).forEach(function(s) {
+    var t = (s.title || "").trim();
+    if (t && !seen[t.toLowerCase()]) { seen[t.toLowerCase()] = true; allShowTitles.push(t); }
+  });
+  allShowTitles.sort();
+  
+  // Load existing thumbnails
+  var { data: thumbs } = await sb.from("asset_thumbnails").select("title,thumbnail_url");
+  thumbnailData = {};
+  (thumbs || []).forEach(function(t) { thumbnailData[t.title.toLowerCase()] = t.thumbnail_url; });
+  
+  renderThumbnailList();
+}
+
+function renderThumbnailList() {
+  var container = document.getElementById("thumbnail-list");
+  var noThumbs = document.getElementById("no-thumbs");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  var q = (document.getElementById("thumb-search")?.value || "").trim().toLowerCase();
+  var filtered = q ? allShowTitles.filter(function(t) { return t.toLowerCase().includes(q); }) : allShowTitles;
+  
+  if (!filtered.length) { noThumbs.style.display = "block"; return; }
+  noThumbs.style.display = "none";
+  
+  filtered.forEach(function(title) {
+    var key = title.toLowerCase();
+    var url = thumbnailData[key] || null;
+    var card = document.createElement("div");
+    card.style.cssText = "background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow .2s";
+    card.onmouseenter = function() { card.style.boxShadow = "0 4px 16px rgba(0,0,0,.1)" };
+    card.onmouseleave = function() { card.style.boxShadow = "none" };
+    
+    var imgContainer = document.createElement("div");
+    imgContainer.style.cssText = "position:relative;height:120px;background:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden";
+    imgContainer.title = "Click to upload thumbnail";
+    
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.style.display = "none";
+    fileInput.onchange = function(e) { uploadThumbnail(title, fileInput); };
+    
+    if (url) {
+      var img = document.createElement("img");
+      img.src = url;
+      img.style.cssText = "width:100%;height:100%;object-fit:cover";
+      img.onerror = function() { img.style.display = "none"; showPlaceholder(imgContainer); };
+      imgContainer.appendChild(img);
+    } else {
+      showPlaceholder(imgContainer);
+    }
+    
+    var uploadOverlay = document.createElement("div");
+    uploadOverlay.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);opacity:0;transition:opacity .2s;color:#fff;font-size:13px;font-weight:700";
+    uploadOverlay.innerHTML = '<span class="ms" style="font-size:32px">cloud_upload</span>';
+    imgContainer.onmouseenter = function() { uploadOverlay.style.opacity = "1" };
+    imgContainer.onmouseleave = function() { uploadOverlay.style.opacity = "0" };
+    imgContainer.onclick = function() { fileInput.click(); };
+    
+    imgContainer.appendChild(uploadOverlay);
+    imgContainer.appendChild(fileInput);
+    card.appendChild(imgContainer);
+    
+    var label = document.createElement("div");
+    label.style.cssText = "padding:10px 12px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+    label.textContent = title;
+    card.appendChild(label);
+    
+    container.appendChild(card);
+  });
+}
+
+function showPlaceholder(el) {
+  el.innerHTML = '<span class="ms" style="font-size:40px;color:#94a3b8">image</span>';
+}
+
+function showThumbSpinner(el) {
+  el.innerHTML = '<span style="width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;display:block"></span>';
+}
+
+async function uploadThumbnail(title, fileInput) {
+  var file = fileInput.files[0];
+  if (!file) return;
+  
+  // Validate file size (max 2MB)
+  if (file.size > 2 * 1024 * 1024) { st("Image too large. Max 2MB.", "e"); fileInput.value = ""; return; }
+  
+  // Read as data URL
+  var reader = new FileReader();
+  reader.onload = async function(e) {
+    var dataUrl = e.target.result;
+    
+    // Show loading state on the card's img container
+    var card = fileInput.closest("div");
+    var imgContainer = card.querySelector("div");
+    showThumbSpinner(imgContainer);
+    
+    // Save to DB
+    var { error } = await sb.from("asset_thumbnails").upsert(
+      { title: title, thumbnail_url: dataUrl },
+      { onConflict: "title" }
+    );
+    
+    if (error) { st("Error saving thumbnail: " + error.message, "e"); showPlaceholder(imgContainer); }
+    else {
+      thumbnailData[title.toLowerCase()] = dataUrl;
+      st("Thumbnail saved for " + title, "s");
+      renderThumbnailList();
+    }
+  };
+  reader.readAsDataURL(file);
 }
 </script>
 </body>
