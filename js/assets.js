@@ -153,11 +153,44 @@ function normalizeShowName(title) {
     return t;
 }
 
+// Thumbnail localStorage cache for fast loading
+var THUMB_CACHE_KEY = "seg_thumb_cache";
+var thumbCacheVersion = 1;
+
+function loadThumbnailCache() {
+    try {
+        var raw = localStorage.getItem(THUMB_CACHE_KEY);
+        if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.v === thumbCacheVersion && parsed.cache) {
+                Object.assign(thumbnailCache, parsed.cache);
+            }
+        }
+    } catch(e) { /* ignore */ }
+}
+
+function saveThumbnailCache() {
+    try {
+        localStorage.setItem(THUMB_CACHE_KEY, JSON.stringify({ v: thumbCacheVersion, cache: thumbnailCache }));
+    } catch(e) { /* ignore */ }
+}
+
 async function loadThumbnails() {
+    // Immediately populate from localStorage
+    loadThumbnailCache();
+    // Then fetch from DB to get any updates
     try {
         var { data } = await sb.from("asset_thumbnails").select("title,thumbnail_url");
         if (data) {
-            data.forEach(function(t) { thumbnailCache[t.title.toLowerCase()] = t.thumbnail_url; });
+            var changed = false;
+            data.forEach(function(t) {
+                var key = t.title.toLowerCase();
+                if (thumbnailCache[key] !== t.thumbnail_url) {
+                    thumbnailCache[key] = t.thumbnail_url;
+                    changed = true;
+                }
+            });
+            if (changed) saveThumbnailCache();
         }
     } catch(e) { console.warn("loadThumbnails error:", e); }
 }
@@ -261,6 +294,7 @@ async function fetchThumbnailForTitle(title) {
         thumbnailCache[saveKey] = thumbnailSrc;
         // Also populate exact title key so lookups for this exact title work
         thumbnailCache[key] = thumbnailSrc;
+        saveThumbnailCache();
         await sb.from("asset_thumbnails").upsert({ title: saveKey, thumbnail_url: thumbnailSrc }, { onConflict: "title" });
         
         // Update any visible UI that shows this thumbnail

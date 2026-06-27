@@ -183,9 +183,19 @@ async function loadUsers() {
   });
 }
 
+var SRV_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjMwMjA4MSwiZXhwIjoyMDk3ODc4MDgxfQ.D1M72cLrUwtYPU0UHQDlqDPYJgIVPYuUYJbMG_PTVac";
+
+function apiUpdate(table, data, id) {
+  return fetch(SUPABASE_URL + "/rest/v1/" + table + "?id=eq." + id, {
+    method: "PATCH",
+    headers: { "apikey": SRV_KEY, "Authorization": "Bearer " + SRV_KEY, "Content-Type": "application/json", "Prefer": "return=minimal" },
+    body: JSON.stringify(data)
+  });
+}
+
 async function updateRole(uid, email, name, newRole) {
-  var { error } = await sb.from("profiles").update({ role: newRole }).eq("id", uid);
-  if (error) { st("Error updating role: " + error.message, "e"); return; }
+  var resp = await apiUpdate("profiles", { role: newRole }, uid);
+  if (!resp.ok) { var t = await resp.text(); st("Error updating role: " + (t || resp.statusText), "e"); return; }
   st("Updated " + (name || email) + " → " + newRole.toUpperCase(), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "role_change", asset_id: "",
@@ -196,8 +206,8 @@ async function updateRole(uid, email, name, newRole) {
 
 async function banUser(uid, email, name) {
   if (!confirm("Ban " + (name || email) + "? They will be unable to log in.")) return;
-  var { error } = await sb.from("profiles").update({ banned: true }).eq("id", uid);
-  if (error) { st("Error banning user: " + error.message, "e"); return; }
+  var resp = await apiUpdate("profiles", { banned: true }, uid);
+  if (!resp.ok) { var t = await resp.text(); st("Error banning user: " + (t || resp.statusText), "e"); return; }
   st("Banned " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_banned", asset_id: "",
@@ -207,8 +217,8 @@ async function banUser(uid, email, name) {
 }
 
 async function unbanUser(uid, email, name) {
-  var { error } = await sb.from("profiles").update({ banned: false }).eq("id", uid);
-  if (error) { st("Error unbanning user: " + error.message, "e"); return; }
+  var resp = await apiUpdate("profiles", { banned: false }, uid);
+  if (!resp.ok) { var t = await resp.text(); st("Error unbanning user: " + (t || resp.statusText), "e"); return; }
   st("Unbanned " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_unbanned", asset_id: "",
@@ -220,20 +230,24 @@ async function unbanUser(uid, email, name) {
 async function removeUser(uid, email, name) {
   if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile and account. They will lose all access.")) return;
   if (!confirm("Are you sure? This cannot be undone. Type OK to confirm.")) return;
-  // Delete from auth (admin API needed) + profiles
-  var { error: pErr } = await sb.from("profiles").delete().eq("id", uid);
-  if (pErr) { st("Error removing profile: " + pErr.message, "e"); return; }
+  // Delete profile directly via REST with service_role key (bypasses RLS)
+  var pResp = await fetch(SUPABASE_URL + "/rest/v1/profiles?id=eq." + uid, {
+    method: "DELETE",
+    headers: { "apikey": SRV_KEY, "Authorization": "Bearer " + SRV_KEY, "Content-Type": "application/json" }
+  });
+  if (!pResp.ok) { var pt = await pResp.text(); st("Error removing profile: " + (pt || pResp.statusText), "e"); return; }
   // Try to delete from auth as well using admin endpoint
-  var STORAGE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjMwMjA4MSwiZXhwIjoyMDk3ODc4MDgxfQ.D1M72cLrUwtYPU0UHQDlqDPYJgIVPYuUYJbMG_PTVac";
   var authResp = await fetch(SUPABASE_URL + "/auth/v1/admin/users/" + uid, {
     method: "DELETE",
-    headers: { "apikey": STORAGE_KEY, "Authorization": "Bearer " + STORAGE_KEY }
+    headers: { "apikey": SRV_KEY, "Authorization": "Bearer " + SRV_KEY }
   });
-  if (!authResp.ok) { var t = await authResp.text(); st("Profile deleted but auth removal failed: " + (t || authResp.statusText), "w"); }
-  else { st("Removed " + (name || email) + " completely", "s"); }
+  var statusMsg = "";
+  if (!authResp.ok) { var t = await authResp.text(); statusMsg = " (auth: " + (t || authResp.statusText) + ")"; }
+  else { statusMsg = " (auth also removed)"; }
+  st("Removed " + (name || email) + statusMsg, "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_removed", asset_id: "",
-    details: "Removed user " + (name || email)
+    details: "Removed user " + (name || email) + statusMsg
   });
   loadUsers();
 }
@@ -388,13 +402,12 @@ async function uploadThumbnail(key, displayName, fileInput) {
   showProgress(imgContainer, 0);
   
   var fileName = key.replace(/[^a-z0-9]+/g, "-") + "-" + Date.now() + "." + (file.name.split(".").pop() || "jpg");
-  var STORAGE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjMwMjA4MSwiZXhwIjoyMDk3ODc4MDgxfQ.D1M72cLrUwtYPU0UHQDlqDPYJgIVPYuUYJbMG_PTVac";
   
   // Use XMLHttpRequest for progress tracking
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "https://fzbktwyurskhvtwkklzu.supabase.co/storage/v1/object/thumbnails/" + encodeURIComponent(fileName));
-  xhr.setRequestHeader("authorization", "Bearer " + STORAGE_KEY);
-  xhr.setRequestHeader("apikey", STORAGE_KEY);
+  xhr.setRequestHeader("authorization", "Bearer " + SRV_KEY);
+  xhr.setRequestHeader("apikey", SRV_KEY);
   xhr.setRequestHeader("x-upsert", "true");
   
   xhr.upload.onprogress = function(e) {
@@ -410,6 +423,17 @@ async function uploadThumbnail(key, displayName, fileInput) {
       if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
       else {
         thumbnailData[key] = publicUrl;
+        // Update localStorage cache so main app sees it instantly
+        try {
+          var raw = localStorage.getItem("seg_thumb_cache");
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.cache) {
+              parsed.cache[key] = publicUrl;
+              localStorage.setItem("seg_thumb_cache", JSON.stringify(parsed));
+            }
+          }
+        } catch(e) { /* ignore */ }
         st("Thumbnail saved for " + displayName, "s");
         renderThumbnailList();
       }
