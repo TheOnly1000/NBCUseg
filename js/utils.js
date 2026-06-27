@@ -75,9 +75,10 @@ function edtToIst(dateStr, timeStr) {
 function edtToIstFull(dateStr, timeStr) {
     if (!dateStr || !timeStr) return { istDate: dateStr || "", istTime: timeStr || "" };
     var t = timeStr.trim();
-    var isPM = /pm/i.test(t);
-    var isAM = /am/i.test(t);
-    t = t.replace(/\s*[ap]m\s*/i, "").trim();
+    var tl = t.toLowerCase().replace(/[\s\u202f]/g, "");
+    var isPM = /pm/.test(tl);
+    var isAM = /am/.test(tl);
+    t = t.replace(/[ap]\.?\s*m\.?/gi, "").trim();
     var parts = t.split(":");
     var h = parseInt(parts[0]) || 0;
     var m = parseInt(parts[1]) || 0;

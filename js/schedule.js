@@ -275,7 +275,7 @@ function scheduleCleanupWindow() {
 function time12to24(str) {
     if (!str) return "";
     str = str.trim();
-    var lower = str.toLowerCase();
+    var lower = str.toLowerCase().replace(/[\s\u202f]/g, "");
     var isPM = lower.indexOf("p.m.") >= 0 || lower.indexOf("pm") >= 0;
     var isAM = lower.indexOf("a.m.") >= 0 || lower.indexOf("am") >= 0;
     str = str.replace(/[ap]\.?\s*m\.?/gi, "").trim();
