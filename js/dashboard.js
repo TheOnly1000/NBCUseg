@@ -101,7 +101,17 @@ function renderDash() {
     }
     
     var countEl = document.getElementById("dash-count");
-    if (countEl) countEl.textContent = filteredAssets.length + " total asset" + (filteredAssets.length !== 1 ? "s" : "");
+    if (countEl) {
+      var allAssets = grpAssets();
+      var liveCount = allAssets.filter(function(a){return (a.type||"").toLowerCase()==="live"}).length;
+      var recCount = allAssets.length - liveCount;
+      var today = new Date().toISOString().slice(0,10);
+      var todayUpcoming = scheduleEntries.filter(function(e){
+        var assignedToMe = e.assigned_to && e.assigned_to.toLowerCase() === (currentUser?.email||"").toLowerCase();
+        return e.schedule_date === today && e.status !== "launched" && (!e.assigned_to || assignedToMe);
+      }).length;
+      countEl.textContent = filteredAssets.length + " shown \u2022 " + allAssets.length + " total (" + (liveCount > 0 ? "Live: " + liveCount + ", " : "") + "Rec: " + recCount + ")" + (todayUpcoming > 0 ? " \u2022 " + todayUpcoming + " upcoming today" : "");
+    }
     
     const showAll = gridContainer.dataset.showAll === "true";
     const displayAssets = showAll ? filteredAssets : filteredAssets.slice(0, 12);
@@ -190,7 +200,10 @@ function renderAssets() {
     const filteredAssets = grpAssets(selectedYear, selectedMonth);
     
     if(document.getElementById("cat-cnt")) {
-        document.getElementById("cat-cnt").textContent = `${filteredAssets.length} total media events.`;
+        var allAssets2 = grpAssets();
+        var liveCount2 = allAssets2.filter(function(a){return (a.type||"").toLowerCase()==="live"}).length;
+        var recCount2 = allAssets2.length - liveCount2;
+        document.getElementById("cat-cnt").textContent = filteredAssets.length + " shown \u2022 " + allAssets2.length + " total (" + (liveCount2 > 0 ? "Live: " + liveCount2 + ", " : "") + "Rec: " + recCount2 + ")";
     }
     
     if (!filteredAssets.length) {

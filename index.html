@@ -444,11 +444,12 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
             <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
               <div>
                   <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Dashboard</h1>
-                  <p class="text-secondary text-sm mt-1">Recent activity across all synced nodes. <span id="dash-count" class="text-primary font-medium"></span></p>
+                  <p class="text-secondary text-sm mt-1"><span id="dash-count" class="text-primary font-medium"></span></p>
               </div>
               <div class="flex flex-wrap items-center gap-3">
                 <select id="d-yr" onchange="renderDash()" class="sel w-auto"><option value="All">All Years</option></select>
                 <select id="d-mo" onchange="renderDash()" class="sel w-auto"><option value="All">All Months</option></select>
+                <button onclick="document.getElementById('d-yr').value='All';document.getElementById('d-mo').value='All';renderDash()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Clear</button>
                 <div class="flex bg-scl border border-ov rounded-xl p-1 shadow-sm">
                   <button onclick="setLay('grid')" id="btn-g" class="p-1.5 rounded-lg bg-sc text-primary sm ripple-host"><span class="ms text-[18px]">grid_view</span></button>
                   <button onclick="setLay('list')" id="btn-l" class="p-1.5 rounded-lg text-secondary hover:text-on-surface sm ripple-host"><span class="ms text-[18px]">view_list</span></button>
@@ -473,6 +474,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
               </div>
               <div class="flex items-center gap-3">
                 <input type="date" id="schedule-date-filter" class="sel text-sm py-2 px-3 w-[160px]">
+                <button onclick="clearScheduleFilter()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Today</button>
                 <button onclick="syncScheduleFromSheet()" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">sync</span>Sync from Sheet</button>
               </div>
             </div>
@@ -512,11 +514,12 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
             <div class="flex flex-wrap justify-between items-end gap-4 mb-8">
               <div>
                   <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Assets Catalog</h1>
-                  <p class="text-secondary text-sm mt-1" id="cat-cnt">0 media events.</p>
+                  <p class="text-secondary text-sm mt-1" id="cat-cnt">0 total.</p>
               </div>
               <div class="flex gap-3 flex-wrap items-center">
                 <select id="a-yr" onchange="renderAssets()" class="sel w-auto"><option value="All">All Years</option></select>
                 <select id="a-mo" onchange="renderAssets()" class="sel w-auto"><option value="All">All Months</option></select>
+                <button onclick="document.getElementById('a-yr').value='All';document.getElementById('a-mo').value='All';renderAssets()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Clear</button>
                 <select id="export-fmt-select" class="sel w-auto text-xs"><option value="csv">CSV</option><option value="xml">XML</option><option value="json">JSON</option></select>
                 <button onclick="exportAssets()" class="btn-primary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">download</span> Export</button>
               </div>
@@ -785,6 +788,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
                 <select id="b-mo" onchange="renderBillingView()" class="sel w-auto"><option value="All">All Months</option></select>
                 <input type="date" id="b-date-from" onchange="renderBillingView()" class="sel text-sm py-2 px-3 w-[150px]" title="From date">
                 <input type="date" id="b-date-to" onchange="renderBillingView()" class="sel text-sm py-2 px-3 w-[150px]" title="To date">
+                <button onclick="document.getElementById('b-yr').value='All';document.getElementById('b-mo').value='All';document.getElementById('b-date-from').value='';document.getElementById('b-date-to').value='';renderBillingView()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Clear</button>
                 <select id="export-billing-fmt" class="sel w-auto text-xs"><option value="csv">CSV</option><option value="xml">XML</option><option value="xlsx">XLSX</option><option value="json">JSON</option></select>
                 <button onclick="exportBilling()" class="btn-primary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">download</span> Export</button>
               </div>

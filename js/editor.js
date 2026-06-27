@@ -1220,11 +1220,11 @@ function showContextMenu(e) {
     
     var ended = card ? (card.classList.contains("ended") || false) : false;
     
+    var showDelete = canEdit();
     menu.innerHTML = '<div class="ctx-item" data-action="view-asset"><span class="ms text-[18px]">visibility</span> View Asset</div>' +
         '<div class="ctx-item" data-action="view-report"><span class="ms text-[18px]">description</span> View Report</div>' +
         '<div class="ctx-item" data-action="edit-asset"><span class="ms text-[18px]">edit</span> Edit</div>' +
-        '<div class="ctx-divider"></div>' +
-        '<div class="ctx-item ctx-danger" data-action="delete-asset"><span class="ms text-[18px]">delete</span> Delete</div>';
+        (showDelete ? '<div class="ctx-divider"></div><div class="ctx-item ctx-danger" data-action="delete-asset"><span class="ms text-[18px]">delete</span> Delete</div>' : '');
     
     contextMenuTarget = assetId;
     menu._assetId = assetId;

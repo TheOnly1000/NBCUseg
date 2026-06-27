@@ -46,10 +46,17 @@ tr:hover{background:#f1f5f9}
   <div class="card" style="max-width:380px;text-align:center">
     <span class="ms" style="font-size:48px;color:var(--primary);margin-bottom:12px">admin_panel_settings</span>
     <h1 style="font-size:22px;font-weight:800;margin:0 0 4px">Admin Panel</h1>
-    <p style="font-size:13px;color:var(--text2);margin:0 0 24px">Local role management console</p>
-    <input id="admin-pass" type="password" class="inp" placeholder="Enter admin password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')authAdmin()">
-    <button onclick="authAdmin()" class="btn" style="width:100%">Authenticate</button>
-    <p style="font-size:11px;color:var(--text2);margin-top:16px">Only accessible from authorized devices.</p>
+    <p id="login-status" style="font-size:13px;color:var(--text2);margin:0 0 24px">Enter your email to receive a one-time code</p>
+    <div id="admin-email-step">
+      <input id="admin-email" type="email" class="inp" placeholder="Your email address" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')sendAdminOtp()">
+      <button onclick="sendAdminOtp()" id="admin-otp-send-btn" class="btn" style="width:100%">Send OTP</button>
+    </div>
+    <div id="admin-otp-step" style="display:none">
+      <input id="admin-otp" type="text" class="inp" placeholder="Enter 6-digit code" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')verifyAdminOtp()">
+      <button onclick="verifyAdminOtp()" id="admin-otp-verify-btn" class="btn" style="width:100%">Verify &amp; Login</button>
+      <p style="font-size:11px;color:var(--text2);margin-top:12px"><a href="#" onclick="event.preventDefault();resetAdminLogin()" style="color:var(--primary)">Use a different email</a></p>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:16px">Only accessible from authorized devices. Check spam folder if OTP not received.</p>
   </div>
 </div>
 
@@ -128,23 +135,72 @@ function st(msg, type) {
   setTimeout(function(){e.style.opacity="0";e.style.transform="translateX(14px)";setTimeout(function(){e.remove()},300)},3000);
 }
 
-function authAdmin() {
-  var p = document.getElementById("admin-pass").value;
-  if (p === ADMIN_PASS) {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("main-screen").style.display = "block";
-    loadUsers();
-    loadThumbnailManager();
-    st("Authenticated as Admin", "s");
-  } else {
-    st("Invalid password", "e");
-  }
+function sendAdminOtp() {
+  var email = document.getElementById("admin-email").value.trim();
+  if (!email) { st("Enter your email", "e"); return; }
+  var btn = document.getElementById("admin-otp-send-btn");
+  btn.disabled = true; btn.textContent = "Sending...";
+  sb.auth.signInWithOtp({ email: email, options: { shouldCreateUser: false } }).then(function(r) {
+    btn.disabled = false; btn.textContent = "Send OTP";
+    if (r.error) {
+      // If user doesn't exist in auth, try magic link anyway
+      if (r.error.message && r.error.message.indexOf("not found") >= 0) {
+        st("Email not registered in system.", "e");
+      } else {
+        st("Error: " + r.error.message, "e");
+      }
+      return;
+    }
+    document.getElementById("admin-email-step").style.display = "none";
+    document.getElementById("admin-otp-step").style.display = "block";
+    document.getElementById("login-status").textContent = "OTP sent to " + email + ". Check your inbox.";
+    st("OTP sent to " + email, "s");
+  });
+}
+
+function verifyAdminOtp() {
+  var email = document.getElementById("admin-email").value.trim();
+  var otp = document.getElementById("admin-otp").value.trim();
+  if (!otp) { st("Enter the OTP code", "e"); return; }
+  var btn = document.getElementById("admin-otp-verify-btn");
+  btn.disabled = true; btn.textContent = "Verifying...";
+  sb.auth.verifyOtp({ email: email, token: otp, type: "email" }).then(function(r) {
+    btn.disabled = false; btn.textContent = "Verify & Login";
+    if (r.error) {
+      st("Invalid or expired OTP: " + r.error.message, "e");
+      return;
+    }
+    // Check if this user has admin role
+    sb.from("profiles").select("role").eq("email", email.toLowerCase()).maybeSingle().then(function(r2) {
+      if (r2.data && r2.data.role === "admin") {
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("main-screen").style.display = "block";
+        document.getElementById("admin-info").textContent = "Logged in as " + email;
+        loadUsers();
+        loadThumbnailManager();
+        st("Authenticated as Admin", "s");
+      } else {
+        st("Access denied. You do not have admin privileges.", "e");
+        sb.auth.signOut();
+      }
+    });
+  });
+}
+
+function resetAdminLogin() {
+  document.getElementById("admin-email-step").style.display = "block";
+  document.getElementById("admin-otp-step").style.display = "none";
+  document.getElementById("login-status").textContent = "Enter your email to receive a one-time code";
+  document.getElementById("admin-email").value = "";
+  document.getElementById("admin-otp").value = "";
 }
 
 function logoutAdmin() {
+  sb.auth.signOut();
   document.getElementById("login-screen").style.display = "flex";
   document.getElementById("main-screen").style.display = "none";
-  document.getElementById("admin-pass").value = "";
+  resetAdminLogin();
+  document.getElementById("admin-info").textContent = "";
 }
 
 async function loadUsers() {

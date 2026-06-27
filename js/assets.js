@@ -517,6 +517,7 @@ function navFromFso(viewId) {
 }
 
 function performDeleteAsset(aid) {
+    if (!canEdit()) { showToast("Viewers cannot delete assets.", "w"); return; }
     showGlobalLoader(true);
     var assetTitle = "";
     var assetData = grpAssets().find(function(a) { return a.id === aid; });

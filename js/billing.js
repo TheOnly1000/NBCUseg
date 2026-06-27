@@ -137,6 +137,7 @@ function updateBatchBar(){
 }
 function clearBatchSelection(){batchSelectedAssets.clear();updateBatchBar()}
 function batchDeleteAssets(){
+  if(!requireEdit())return;
   var del=[],block=[];
   batchSelectedAssets.forEach(function(aid){
     var a=grpAssets().find(function(g){return g.id===aid});

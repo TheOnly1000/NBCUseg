@@ -73,7 +73,8 @@ async function handleUserLogin(event) {
                     if (on && on.id === "vp-schedule") renderSchedule();
                     else if (on && on.id === "vp-dashboard") renderDash();
                 });
-            }, 15000);
+                scheduleCleanupWindow();
+            }, 30000);
         });
         subscribeRealTime();
     }, 400);

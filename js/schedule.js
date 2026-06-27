@@ -43,6 +43,7 @@ function scheduleDbWrite() {
         return {
             row_index: e.row_index,
             schedule_date: normDate(e.schedule_date),
+            ist_date: e.ist_date || normDate(e.schedule_date),
             event_type: e.event_type,
             series_name: e.series_name || "",
             episode_title: e.episode_title || "",
@@ -99,12 +100,51 @@ function fetchGoogleSheet(sheetId, gid) {
     });
 }
 
-function fetchScheduleFromSheet(dateFilter) {
+function parseSheetDate(dateVal, year) {
+    var cleanDate = "";
+    var dateMatch = dateVal.match(/Date\((\d+),(\d+),(\d+)\)/);
+    if (dateMatch) {
+        var mo2 = parseInt(dateMatch[2]) + 1;
+        var da2 = parseInt(dateMatch[3]);
+        cleanDate = parseInt(dateMatch[1]) + "-" + ("0"+mo2).slice(-2) + "-" + ("0"+da2).slice(-2);
+    } else {
+        var dp = dateVal.split("/");
+        if (dp.length >= 2) {
+            var mo2 = parseInt(dp[0]), da2 = parseInt(dp[1]);
+            if (mo2 && da2) cleanDate = year + "-" + ("0"+mo2).slice(-2) + "-" + ("0"+da2).slice(-2);
+        }
+    }
+    return cleanDate;
+}
+
+function sortEntriesForDisplay(entries) {
+    entries.sort(function(a, b) {
+        var aKey = (a.ist_date || a.schedule_date) + " " + a.start_time_ist;
+        var bKey = (b.ist_date || b.schedule_date) + " " + b.start_time_ist;
+        return aKey.localeCompare(bKey);
+    });
+    return entries;
+}
+
+function fetchScheduleFromSheet() {
     return fetchGoogleSheet("1yf8W7oDGmUlTMmRxDcgCTD8D-zHUH3lsYgZ5jVdaSXY", "0").then(function(data) {
         if (!data || !data.table || !data.table.rows) return [];
         var rows = data.table.rows;
         var startIdx = data.table.parsedNumHeaders || 5;
-        var entries = [];
+        var today = new Date();
+        var yr = today.getFullYear();
+        // Compute IST window: today-2 to today+2 (IST dates)
+        var windowStart = addDays(todayIst(), -2);
+        var windowEnd = addDays(todayIst(), 2);
+        // Fetch EDT dates from windowStart-1 to windowEnd+1 to cover IST shift
+        var edtStart = addDays(windowStart, -1);
+        var edtEnd = addDays(windowEnd, 1);
+        var entryByRow = {};
+        // First, load existing entries by row_index so we can merge
+        if (scheduleEntries.length) {
+            scheduleEntries.forEach(function(e) { if (e.row_index) entryByRow[e.row_index] = e; });
+        }
+        
         for (var i = startIdx; i < rows.length; i++) {
             var rc = rows[i].c;
             if (!rc || rc.length < 6) continue;
@@ -119,29 +159,24 @@ function fetchScheduleFromSheet(dateFilter) {
             var timeOutFmt = rc[8] ? gvizCellValue(rc[8]) : "";
             var sheetAssetId = rc[13] ? gvizCellValue(rc[13]) : "";
             if (!dateVal || !seriesVal) continue;
-            var yr = parseInt(dateFilter.split("-")[0]) || new Date().getFullYear();
-            var cleanDate = "";
-            var dateMatch = dateVal.match(/Date\((\d+),(\d+),(\d+)\)/);
-            if (dateMatch) {
-                var mo2 = parseInt(dateMatch[2]) + 1;
-                var da2 = parseInt(dateMatch[3]);
-                cleanDate = parseInt(dateMatch[1]) + "-" + ("0"+mo2).slice(-2) + "-" + ("0"+da2).slice(-2);
-            } else {
-                var dp = dateVal.split("/");
-                if (dp.length >= 2) {
-                    var mo2 = parseInt(dp[0]), da2 = parseInt(dp[1]);
-                    if (mo2 && da2) cleanDate = yr + "-" + ("0"+mo2).slice(-2) + "-" + ("0"+da2).slice(-2);
-                }
-            }
-            if (!cleanDate || cleanDate !== dateFilter) continue;
+            var cleanDate = parseSheetDate(dateVal, yr);
+            // Filter by EDT date range (wider to cover IST shift)
+            if (!cleanDate || cleanDate < edtStart || cleanDate > edtEnd) continue;
+            
             var timeIn24 = time12to24(timeInFmt);
             var timeOut24 = time12to24(timeOutFmt);
-            var startIst = timeIn24 ? edtToIst(cleanDate, timeIn24) : "";
-            var endIst = timeOut24 ? edtToIst(cleanDate, timeOut24) : "";
+            var istInfo = timeIn24 ? edtToIstFull(cleanDate, timeIn24) : { istDate: cleanDate, istTime: "" };
+            var endIstInfo = timeOut24 ? edtToIstFull(cleanDate, timeOut24) : { istDate: cleanDate, istTime: "" };
+            var istDate = istInfo.istDate;
+            // Only keep entries whose IST date falls within the window
+            if (istDate < windowStart || istDate > windowEnd) continue;
+            
+            var existing = entryByRow[i];
             entries.push({
-                id: null,
+                id: existing ? existing.id : null,
                 row_index: i,
                 schedule_date: cleanDate,
+                ist_date: istDate,
                 event_type: typeVal,
                 series_name: seriesVal,
                 episode_title: episodeTitle || seriesVal,
@@ -150,11 +185,11 @@ function fetchScheduleFromSheet(dateFilter) {
                 sheet_asset_id: sheetAssetId,
                 start_time_edt: timeInFmt,
                 end_time_edt: timeOutFmt,
-                start_time_ist: startIst,
-                end_time_ist: endIst,
-                assigned_to: "",
-                status: "pending",
-                launched_asset_id: "",
+                start_time_ist: istInfo.istTime,
+                end_time_ist: endIstInfo.istTime,
+                assigned_to: existing ? (existing.assigned_to || "") : "",
+                status: existing ? (existing.launched_asset_id ? "launched" : (existing.assigned_to ? "assigned" : "pending")) : "pending",
+                launched_asset_id: existing ? (existing.launched_asset_id || "") : "",
                 segment_count: segCountVal
             });
         }
@@ -163,60 +198,76 @@ function fetchScheduleFromSheet(dateFilter) {
 }
 
 function syncScheduleFromSheet() {
-    var dateFilter = document.getElementById("schedule-date-filter")?.value || "";
-    if (!dateFilter) { showToast("Please select a date first.", "e"); return; }
     showGlobalLoader(true);
     var hideLoader = function(){try{showGlobalLoader(false)}catch(e){}};
-    // Capture current assignments for this date before overwriting
-    var df = normDate(dateFilter);
-    var oldAssignments = {};
-    scheduleEntries.forEach(function(e) {
-        if (normDate(e.schedule_date) === df) {
-            oldAssignments[e.row_index] = e;
-        }
-    });
-    // Also read any DB assignments made by other users
-    scheduleDbRead(dateFilter).then(function(dbRows) {
-        dbRows.forEach(function(r) {
-            if (!oldAssignments[r.row_index] || !oldAssignments[r.row_index].assigned_to) {
-                oldAssignments[r.row_index] = r;
+    
+    // Capture all existing assignments before merging
+    var oldByRow = {};
+    scheduleEntries.forEach(function(e) { if (e.row_index) oldByRow[e.row_index] = e; });
+    
+    // Fetch all sheet data for the buffer window
+    fetchScheduleFromSheet().then(function(entries) {
+        if (entries.length === 0) { hideLoader(); showToast("No entries found in the buffer window.", "e"); return; }
+        
+        // Merge with existing DB entries (preserve assignments from both local and DB)
+        var merged = {};
+        entries.forEach(function(e) { merged[e.row_index] = e; });
+        // Also merge any existing entries NOT in the new sheet data (they may be from previous days still in window)
+        scheduleEntries.forEach(function(e) {
+            if (e.row_index && !merged[e.row_index]) {
+                merged[e.row_index] = e;
             }
         });
-        // Now fetch fresh from sheet
-        fetchScheduleFromSheet(dateFilter).then(function(entries) {
-            if (entries.length === 0) { hideLoader(); showToast("No entries found for " + dateFilter + ".", "e"); return; }
-            // Merge sheet data with preserved assignments
-            entries.forEach(function(e) {
-                var old = oldAssignments[e.row_index];
-                if (old) {
-                    e.assigned_to = old.assigned_to || "";
-                    e.status = old.launched_asset_id ? "launched" : (old.assigned_to ? "assigned" : "pending");
-                    e.launched_asset_id = old.launched_asset_id || "";
-                }
-            });
-            // Clear local cache entirely and replace with fresh sheet data
-            scheduleEntries = [];
-            entries.forEach(function(e) { scheduleEntries.push(e); });
-            scheduleEntries.sort(function(a, b) {
-                return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
-            });
-            // Wipe DB and write fresh
-            scheduleDbWrite().then(function() {
-                return loadScheduleFromDb(true);
-            }).then(function() {
-                hideLoader();
-                renderSchedule(); renderDash();
-                showToast("Synced " + entries.length + " entries for " + dateFilter + ".", "s");
-            }).catch(function(err) {
-                hideLoader();
-                renderSchedule(); renderDash();
-                showToast("Schedule loaded but DB save failed: " + (err && err.message ? err.message : err), "e", 8000);
-                console.error("scheduleDbWrite error:", err);
-            });
+        
+        scheduleEntries = sortEntriesForDisplay(Object.values(merged));
+        
+        // Write to DB, then clean up old entries
+        scheduleDbWrite().then(function() {
+            return scheduleCleanupWindow();
+        }).then(function() {
+            hideLoader();
+            renderSchedule(); renderDash();
+            showToast("Synced " + entries.length + " entries in buffer.", "s");
         }).catch(function(err) {
-            hideLoader(); showToast("Sheet fetch failed: " + err, "e");
+            hideLoader();
+            renderSchedule(); renderDash();
+            showToast("Schedule save failed: " + (err && err.message ? err.message : err), "e", 8000);
+            console.error("syncScheduleFromSheet error:", err);
         });
+    }).catch(function(err) {
+        hideLoader(); showToast("Sheet fetch failed: " + err, "e");
     });
+}
+
+function scheduleCleanupWindow() {
+    var windowStart = addDays(todayIst(), -2);
+    // Delete entries older than window from DB only if not assigned/launched
+    return sb.from("schedule_entries").select("id,row_index,assigned_to,launched_asset_id,status").then(function(r) {
+        if (r.error) return;
+        var toDelete = (r.data || []).filter(function(dbEntry) {
+            // Compute IST date for this entry from scheduleEntries cache
+            var local = null;
+            for (var i = 0; i < scheduleEntries.length; i++) {
+                if (scheduleEntries[i].row_index === dbEntry.row_index && scheduleEntries[i].id === dbEntry.id) {
+                    local = scheduleEntries[i]; break;
+                }
+            }
+            var istDate = local ? (local.ist_date || local.schedule_date) : (dbEntry.schedule_date || "");
+            if (!istDate || istDate >= windowStart) return false; // keep if in window
+            // Delete only if not assigned/launched
+            var assigned = dbEntry.assigned_to || local?.assigned_to || "";
+            var launched = dbEntry.launched_asset_id || local?.launched_asset_id || "";
+            return !assigned && !launched;
+        }).map(function(e) { return e.id; });
+        
+        if (toDelete.length) {
+            return sb.from("schedule_entries").delete().in("id", toDelete).then(function(dr) {
+                if (!dr.error) console.log("schedule cleanup: deleted", toDelete.length, "old entries");
+                // Also remove from local cache
+                scheduleEntries = scheduleEntries.filter(function(e) { return toDelete.indexOf(e.id) < 0; });
+            });
+        }
+    }).catch(function(e) { console.warn("scheduleCleanupWindow error:", e); });
 }
 
 function time12to24(str) {
@@ -273,6 +324,15 @@ function scheduleRenderAll() {
     renderDashUpcoming();
 }
 
+function clearScheduleFilter() {
+  var dp = document.getElementById("schedule-date-filter");
+  if (dp) {
+    var today = new Date();
+    dp.value = today.getFullYear() + "-" + ("0"+(today.getMonth()+1)).slice(-2) + "-" + ("0"+today.getDate()).slice(-2);
+  }
+  renderSchedule();
+}
+
 function loadScheduleFromDb(silent) {
     if(!silent)showGlobalLoader(true);
     if(!sb){if(!silent)showGlobalLoader(false);scheduleRenderAll();return Promise.resolve()}
@@ -280,10 +340,12 @@ function loadScheduleFromDb(silent) {
         if (result.error) { console.warn("Load schedule error:", result.error); return; }
         if ((result.data||[]).length > 0) console.log("schedule loaded:", (result.data||[]).length, "entries");
         scheduleEntries = (result.data||[]).map(function(r) {
+            var istDate = r.ist_date || (r.start_time_edt ? edtToIstFull(r.schedule_date || "", r.start_time_edt || "").istDate : normDate(r.schedule_date));
             return {
                 id: r.id,
                 row_index: r.row_index,
                 schedule_date: normDate(r.schedule_date),
+                ist_date: istDate,
                 event_type: r.event_type,
                 series_name: r.series_name || "",
                 episode_title: r.episode_title || "",
@@ -300,10 +362,13 @@ function loadScheduleFromDb(silent) {
                 segment_count: r.segment_count || ""
             };
         });
-        scheduleEntries.sort(function(a, b) {
-            return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
-        });
+        sortEntriesForDisplay(scheduleEntries);
         if(!silent)showGlobalLoader(false);
+        // Filter to buffer window on load
+        scheduleEntries = scheduleEntries.filter(function(e) {
+            var d = e.ist_date || e.schedule_date;
+            return d >= addDays(todayIst(), -2) && d <= addDays(todayIst(), 2);
+        });
     }).catch(function(e){console.warn("loadScheduleFromDb error:",e);if(!silent)showGlobalLoader(false)}).then(function(){scheduleRenderAll()});
 }
 
@@ -313,21 +378,27 @@ function renderSchedule() {
     var tbody = document.getElementById("schedule-tbody");
     var empty = document.getElementById("schedule-empty");
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
-    var dp = document.getElementById("schedule-date-filter");
-    if (dp && !dp.value) {
-        var today = new Date();
-        dp.value = today.getFullYear() + "-" + ("0"+(today.getMonth()+1)).slice(-2) + "-" + ("0"+today.getDate()).slice(-2);
-    }
     if (!tbody) return;
-    if (scheduleEntries.length === 0) {
+    
+    // Filter to IST buffer window: today-2 to today+2
+    var windowStart = addDays(todayIst(), -2);
+    var windowEnd = addDays(todayIst(), 2);
+    var filtered = scheduleEntries.filter(function(e) {
+        var d = e.ist_date || e.schedule_date;
+        return d >= windowStart && d <= windowEnd;
+    });
+    
+    if (filtered.length === 0) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
         if (upcomingCards) {
-            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">Loading schedule...</div>';
+            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries in the current buffer window. Sync from sheet to load data.</div>';
         }
         return;
     }
-    renderScheduleTable(scheduleEntries);
+    if (empty) empty.style.display = "none";
+    
+    renderScheduleTable(filtered);
 }
 
 function formatDateShort(dateStr) {
@@ -495,9 +566,7 @@ function renderDashUpcomingCards(entries, userEmail) {
     var upcomingCards = document.getElementById("dash-upcoming-cards");
     if (!upcomingSection || !upcomingCards) return;
     
-    entries.sort(function(a, b) {
-        return a.start_time_ist.localeCompare(b.start_time_ist);
-    });
+        sortEntriesForDisplay(entries);
     
     if (entries.length > 0) {
         upcomingSection.style.display = "block";
@@ -505,9 +574,10 @@ function renderDashUpcomingCards(entries, userEmail) {
         entries.forEach(function(entry) {
             var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
             var ti = getTypeInfo(entry.event_type);
-            var cid3 = "cd-" + entry.row_index + "-" + entry.schedule_date + "-dash";
+            var istD4 = entry.ist_date || entry.schedule_date;
+            var cid3 = "cd-" + entry.row_index + "-" + istD4 + "-dash";
             html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2 min-w-0'>";
-            html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(entry.schedule_date) + "</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
+            html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(istD4) + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
                         html += "<div class='font-bold text-sm text-on-surface'>" + escHtml(entry.episode_title) + "</div>";
             html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
 
@@ -550,11 +620,13 @@ var _countdown5minWarned = {};
 
 function getCountdownText(entry) {
     var startIst = entry.start_time_ist || entry.start_time_edt || "";
-    if (!startIst || !entry.schedule_date) return "";
+    var istDate = entry.ist_date || entry.schedule_date || "";
+    if (!startIst || !istDate) return "";
     var parts = startIst.split(":");
     var h = parseInt(parts[0]) || 0;
     var m = parseInt(parts[1]) || 0;
-    var target = new Date(entry.schedule_date + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00");
+    // Construct as IST date + IST time → parse as UTC to avoid local tz shift
+    var target = new Date(istDate + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00+05:30");
     var diff = target.getTime() - Date.now();
     if (diff <= 0) return "ENDED";
     var secs = Math.floor(diff / 1000);
@@ -566,12 +638,13 @@ function getCountdownText(entry) {
 
 function shouldWarn5min(entry) {
     var startIst = entry.start_time_ist || entry.start_time_edt || "";
-    if (!startIst || !entry.schedule_date) return false;
-    if (_countdown5minWarned[entry.row_index + "|" + entry.schedule_date]) return false;
+    var istDate = entry.ist_date || entry.schedule_date || "";
+    if (!startIst || !istDate) return false;
+    if (_countdown5minWarned[entry.row_index + "|" + istDate]) return false;
     var parts = startIst.split(":");
     var h = parseInt(parts[0]) || 0;
     var m = parseInt(parts[1]) || 0;
-    var target = new Date(entry.schedule_date + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00");
+    var target = new Date(istDate + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00+05:30");
     var diff = target.getTime() - Date.now();
     var minsLeft = diff / 60000;
     if (minsLeft <= 5 && minsLeft > 4.5) {
@@ -613,7 +686,8 @@ function updateCountdowns() {
             }
         }
         // Update countdown spans (schedule + dashboard)
-        var ids = ["cd-" + entry.row_index + "-" + entry.schedule_date, "cd-" + entry.row_index + "-" + entry.schedule_date + "-dash"];
+        var istD3 = entry.ist_date || entry.schedule_date;
+        var ids = ["cd-" + entry.row_index + "-" + istD3, "cd-" + entry.row_index + "-" + istD3 + "-dash"];
         ids.forEach(function(cid) {
             var el = document.getElementById(cid);
             if (el) {
@@ -639,9 +713,7 @@ function updateCountdowns() {
 var _countdownTimer = setInterval(updateCountdowns, 1000);
 
 function renderScheduleTable(entries) {
-    entries.sort(function(a, b) {
-        return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
-    });
+    sortEntriesForDisplay(entries);
     var tbody = document.getElementById("schedule-tbody");
     var empty = document.getElementById("schedule-empty");
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
@@ -650,7 +722,7 @@ function renderScheduleTable(entries) {
     if (entries.length === 0) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
-        if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries for this date.</div>';
+        if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries in the current buffer window.</div>';
         return;
     }
     if (empty) empty.style.display = "none";
@@ -662,17 +734,18 @@ function renderScheduleTable(entries) {
         var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
         var canLaunch = isAssignedToMe && !assetExists;
         var launched = assetExists;
-        var cid = "cd-" + entry.row_index + "-" + entry.schedule_date;
+        var istDate = entry.ist_date || entry.schedule_date;
+        var cid = "cd-" + entry.row_index + "-" + istDate;
         html += "<tr class='hover:bg-sclo smooth border-b border-ov/20'>";
         html += "<td class='p-3 pl-4 text-secondary font-mono text-xs'>" + (idx + 1) + "</td>";
-        html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(entry.schedule_date) + "</td>";
+        html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(istDate) + "</td>";
         html += "<td class='p-3 text-on-surface'>" + escHtml(entry.episode_title) + "</td>";
         html += "<td class='p-3 text-secondary font-mono text-xs'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</td>";
         html += "<td class='p-3 text-secondary font-mono text-xs'>S" + escHtml(entry.season_no) + "/E" + escHtml(entry.episode_no) + "</td>";
         html += "<td class='p-3 text-center font-mono text-xs text-secondary'>" + (entry.segment_count || "—") + "</td>";
         var ct = getCountdownText(entry);
         var ctDisplay = ct === "ENDED" ? "ENDED" : (ct ? "upcoming in " + ct : "");
-html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + "<br><span id='" + cid + "' class='text-[10px] text-primary font-mono'>" + ctDisplay + "</span></td>";
+html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><span class='text-primary'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</span><br><span id='" + cid + "' class='text-[10px] text-primary font-mono'>" + ctDisplay + "</span></td>";
         var ti2 = getTypeInfo(entry.event_type);
         html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
         html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
@@ -718,10 +791,11 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'>" +
                 var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
                 var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
                 var canLaunch = isAssignedToMe && !assetExists;
-                var cid2 = "cd-" + entry.row_index + "-" + entry.schedule_date;
+                var istD2 = entry.ist_date || entry.schedule_date;
+                var cid2 = "cd-" + entry.row_index + "-" + istD2;
                 cardsHtml += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
                 var ti = getTypeInfo(entry.event_type);
-                cardsHtml += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(entry.schedule_date) + "</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
+                cardsHtml += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(istD2) + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
                 cardsHtml += "<div class='font-bold text-sm text-on-surface truncate'>" + escHtml(entry.episode_title) + "</div>";
                 cardsHtml += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
                 cardsHtml += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";

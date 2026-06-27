@@ -101,7 +101,7 @@ function handleGlobalKeys(event) {
     if (modKey && event.key.toLowerCase() === "s" && !event.shiftKey && !isTyping) { event.preventDefault(); saveToSheets(); return; }
     if (modKey && event.key.toLowerCase() === "s" && event.shiftKey && !isTyping) { event.preventDefault(); saveSegmentsToDb(); return; }
     if (modKey && event.key === "Enter" && !isTyping) { event.preventDefault(); addSeg(); return; }
-    if (modKey && event.key.toLowerCase() === "c" && !isTyping) { event.preventDefault(); copyEditorMcr(); return; }
+    // Ctrl+C removed - users can now copy any text freely. MCR copy icons still available in each view.
     // Dark mode shortcut removed
     if (modKey && event.key === "1" && !isTyping) { event.preventDefault(); nav("dashboard"); return; }
     if (modKey && event.key === "2" && !isTyping) { event.preventDefault(); nav("assets"); return; }
