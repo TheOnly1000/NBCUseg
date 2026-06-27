@@ -133,12 +133,9 @@ function fetchScheduleFromSheet() {
         var startIdx = data.table.parsedNumHeaders || 1;
         var today = new Date();
         var yr = today.getFullYear();
-        // Compute IST window: today-2 to today+2 (IST dates)
-        var windowStart = addDays(todayIst(), -2);
-        var windowEnd = addDays(todayIst(), 2);
-        // Fetch EDT dates from windowStart-1 to windowEnd+1 to cover IST shift
-        var edtStart = addDays(windowStart, -1);
-        var edtEnd = addDays(windowEnd, 1);
+        // EDT buffer window: yesterday, today, tomorrow (EDT dates, matching the sheet)
+        var edtStart = addDays(todayEdt(), -1);
+        var edtEnd = addDays(todayEdt(), 1);
         var entryByRow = {};
         // First, load existing entries by row_index so we can merge
         if (scheduleEntries.length) {
@@ -238,23 +235,16 @@ function syncScheduleFromSheet() {
 }
 
 function scheduleCleanupWindow() {
-    var windowStart = addDays(todayIst(), -2);
-    // Delete entries older than window from DB only if not assigned/launched
-    return sb.from("schedule_entries").select("id,row_index,assigned_to,launched_asset_id,status").then(function(r) {
+    var edtStart = addDays(todayEdt(), -1);
+    // Delete entries older than EDT window from DB only if not assigned/launched
+    return sb.from("schedule_entries").select("id,row_index,schedule_date,assigned_to,launched_asset_id,status").then(function(r) {
         if (r.error) return;
         var toDelete = (r.data || []).filter(function(dbEntry) {
-            // Compute IST date for this entry from scheduleEntries cache
-            var local = null;
-            for (var i = 0; i < scheduleEntries.length; i++) {
-                if (scheduleEntries[i].row_index === dbEntry.row_index && scheduleEntries[i].id === dbEntry.id) {
-                    local = scheduleEntries[i]; break;
-                }
-            }
-            var istDate = local ? (local.ist_date || local.schedule_date) : (dbEntry.schedule_date || "");
-            if (!istDate || istDate >= windowStart) return false; // keep if in window
+            var schedDate = dbEntry.schedule_date || "";
+            if (!schedDate || schedDate >= edtStart) return false; // keep if in window
             // Delete only if not assigned/launched
-            var assigned = dbEntry.assigned_to || local?.assigned_to || "";
-            var launched = dbEntry.launched_asset_id || local?.launched_asset_id || "";
+            var assigned = dbEntry.assigned_to || "";
+            var launched = dbEntry.launched_asset_id || "";
             return !assigned && !launched;
         }).map(function(e) { return e.id; });
         
@@ -362,10 +352,9 @@ function loadScheduleFromDb(silent) {
         });
         sortEntriesForDisplay(scheduleEntries);
         if(!silent)showGlobalLoader(false);
-        // Filter to buffer window on load
+        // Filter to EDT buffer window on load
         scheduleEntries = scheduleEntries.filter(function(e) {
-            var d = e.ist_date || e.schedule_date;
-            return d >= addDays(todayIst(), -2) && d <= addDays(todayIst(), 2);
+            return e.schedule_date >= addDays(todayEdt(), -1) && e.schedule_date <= addDays(todayEdt(), 1);
         });
     }).catch(function(e){console.warn("loadScheduleFromDb error:",e);if(!silent)showGlobalLoader(false)}).then(function(){scheduleRenderAll()});
 }
@@ -378,11 +367,11 @@ function renderSchedule() {
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
     if (!tbody) return;
     
-    // Filter by EDT date buffer window: today-2 to today+2
-    var windowStart = addDays(todayIst(), -2);
-    var windowEnd = addDays(todayIst(), 2);
+    // Filter by EDT date: yesterday, today, tomorrow
+    var edtStart = addDays(todayEdt(), -1);
+    var edtEnd = addDays(todayEdt(), 1);
     var filtered = scheduleEntries.filter(function(e) {
-        return e.schedule_date >= windowStart && e.schedule_date <= windowEnd;
+        return e.schedule_date >= edtStart && e.schedule_date <= edtEnd;
     });
     
     if (filtered.length === 0) {
