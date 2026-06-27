@@ -43,7 +43,14 @@ function grpAssets(filterYear = "All", filterMonth = "All") {
         assets[a.id] = { id: a.id, date: a.date, title: a.title, type: a.type, owner: rowOwner, ownerChain: ownerChain, allOwners: allOwners, status: assetStatus, lockedBy: lockedBy, rows: filteredRows };
     }
     
-    return Object.values(assets).reverse();
+    var result = Object.values(assets);
+    // Sort by date descending (most recent first)
+    result.sort(function(a, b) {
+        var da = a.date ? new Date(a.date) : new Date(0);
+        var db = b.date ? new Date(b.date) : new Date(0);
+        return db - da;
+    });
+    return result;
 }
 
 function buildFilters() {
@@ -126,14 +133,24 @@ window.thumbnailCache = {};
 
 function normalizeShowName(title) {
     if (!title) return "";
-    // Extract base name before colon, em dash, or " - " (for episode-based titles)
-    var sep = title.indexOf(": ");
-    if (sep > 0) return title.substring(0, sep).trim();
-    sep = title.indexOf(" — ");
-    if (sep > 0) return title.substring(0, sep).trim();
-    sep = title.indexOf(" - ");
-    if (sep > 0) return title.substring(0, sep).trim();
-    return title.trim();
+    var t = title.trim();
+    // Try splitting on common episode separators in order of priority
+    var seps = [" — ", " – ", " - ", ": ", " #"];
+    for (var si = 0; si < seps.length; si++) {
+        var idx = t.indexOf(seps[si]);
+        if (idx > 0) {
+            var prefix = t.substring(0, idx).trim();
+            // Only use prefix if it's reasonably long and the suffix looks like an episode detail
+            if (prefix.length >= 3) return prefix;
+        }
+    }
+    // For "Team vs. Team" format, extract team name (first team)
+    var vsIdx = t.toLowerCase().indexOf(" vs.");
+    if (vsIdx > 2) {
+        var teamPrefix = t.substring(0, vsIdx).trim();
+        if (teamPrefix.length >= 3) return teamPrefix;
+    }
+    return t;
 }
 
 async function loadThumbnails() {

@@ -10,6 +10,10 @@ function updateRoleUI(){
   var el=document.getElementById("role-badge-header");
   if(el){el.textContent=r.toUpperCase();el.className="role-badge role-"+r+" ml-2"}
   var ed=canEdit();
+  var isAdmin = r === "admin";
+  // Show admin panel link only for admins
+  var adminLink = document.getElementById("admin-panel-link");
+  if (adminLink) adminLink.style.display = isAdmin ? "flex" : "none";
   // Disable editor for viewers
   document.querySelectorAll("#editor-main .inp,#editor-main select,#editor-main .btn-primary,#editor-main .btn-secondary,#editor-main [onclick*='addSeg']").forEach(function(e){e.style.pointerEvents=ed?"":"none";e.style.opacity=ed?"":"0.5"});
   document.querySelectorAll("#new-a-btn,[onclick*='openNewAsset']").forEach(function(b){if(b.tagName==="BUTTON"||b.tagName==="A")b.style.display=ed?"":"none"});
@@ -27,8 +31,15 @@ document.addEventListener("DOMContentLoaded",function(){if(!canEdit())document.q
 document.addEventListener("DOMContentLoaded",function(){
   setTimeout(function(){
     if(currentUser&&currentUser.id){
-      sb.from("profiles").select("role").eq("id",currentUser.id).maybeSingle().then(function(r2){
-        if(r2.data){currentUser.role=r2.data.role||"viewer";updateRoleUI()}
+      sb.from("profiles").select("role,banned").eq("id",currentUser.id).maybeSingle().then(function(r2){
+        if(r2.data){
+          if(r2.data.banned){
+            showToast("Your account has been banned. Contact an admin.","e",10000);
+            processLogout();
+            return;
+          }
+          currentUser.role=r2.data.role||"viewer";updateRoleUI()
+        }
       });
       loadTickets();
     }
@@ -59,6 +70,14 @@ loadUserProfiles = function(){
 function logAudit(action,assetId,details){
   if(!currentUser||!currentUser.email)return;
   sb.from("audit_logs").insert({user_email:currentUser.email,user_name:currentUser.name||"",action:action,asset_id:assetId||"",details:details||""}).then(function(){})
+}
+
+// Log crucial actions automatically
+function logErrorAction(action,assetId,details){
+  logAudit("error_"+action,assetId,details);
+}
+function logSuspiciousAction(details){
+  logAudit("suspicious_activity","",details);
 }
 
 // --- UNDO / REDO ---

@@ -399,7 +399,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
             <button onclick="requestConfirmation('Log out?','Are you sure you want to log out?',processLogout,'Logout','logout')" class="logout-btn w-8 h-8 rounded-lg hover:bg-ec flex items-center justify-center sm text-secondary hover:text-error" title="Log Out"><span class="ms text-[18px]">logout</span></button>
           </div>
         </div>
-        <a href="admin.html" target="_blank" class="flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-secondary hover:text-primary sm rounded-lg no-underline" title="Admin Panel (local only)"><span class="ms text-[14px]">admin_panel_settings</span><span class="sbl">Admin Panel</span></a>
+        <a href="admin.html" target="_blank" id="admin-panel-link" class="flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-secondary hover:text-primary sm rounded-lg no-underline" title="Admin Panel (local only)" style="display:none"><span class="ms text-[14px]">admin_panel_settings</span><span class="sbl">Admin Panel</span></a>
       </div>
     </nav>
     
@@ -521,22 +521,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
                 <button onclick="exportAssets()" class="btn-primary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">download</span> Export</button>
               </div>
             </div>
-            <div class="card ts">
-              <table class="w-full text-left" style="min-width:800px">
-                <thead class="border-b border-ov/50 text-[11px] text-secondary uppercase tracking-wider font-bold font-mono bg-sclo">
-                  <tr>
-                      <th class="py-4 px-2 w-10"><input type="checkbox" onchange="toggleSelectAllAssets(this.checked)" class="cursor-pointer"></th>
-                      <th class="py-4 px-6 w-20">Media</th>
-                      <th class="py-4 px-6">Asset ID &amp; Event</th>
-                      <th class="py-4 px-6">Date</th>
-                      <th class="py-4 px-6">Type</th>
-                      <th class="py-4 px-6">Owner</th>
-                      <th class="py-4 px-6 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="atbody" class="divide-y divide-ov/30 text-sm bg-scl"></tbody>
-              </table>
-            </div>
+            <div id="assets-container" class="space-y-3"></div>
           </div>
         </div>
 

@@ -50,6 +50,11 @@ END $$;
 ## Known Tables in supabase_realtime
 `segments`, `notifications`, `profiles`, `schedule_entries`, `tickets`, `ticket_comments`, `notification_reads`, `ticket_views`, `comment_views`, `asset_thumbnails`
 
+## Profiles Table Update
+```sql
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS banned boolean DEFAULT false;
+```
+
 ## Troubleshooting Checklist
 1. Is the table in `supabase_realtime`? → `pg_publication_tables` query
 2. Are RLS policies created? → `pg_policies` query  

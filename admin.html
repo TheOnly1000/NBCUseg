@@ -64,6 +64,7 @@ tr:hover{background:#f1f5f9}
         <button onclick="loadAuditLogs()" class="btn btn-outline btn-sm flex items-center gap-1"><span class="ms" style="font-size:16px">history</span> Audit Log</button>
         <button onclick="logoutAdmin()" class="btn btn-sm btn-danger flex items-center gap-1"><span class="ms" style="font-size:16px">logout</span> Logout</button>
       </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:8px" id="admin-info"></div>
     </div>
 
     <div class="card" style="margin-bottom:20px">
@@ -72,7 +73,7 @@ tr:hover{background:#f1f5f9}
       <div style="overflow-x:auto">
         <table>
           <thead>
-            <tr><th>User</th><th>Email</th><th>Role</th><th>Action</th></tr>
+            <tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
           </thead>
           <tbody id="user-table-body"></tbody>
         </table>
@@ -93,9 +94,12 @@ tr:hover{background:#f1f5f9}
     <div class="card" id="audit-section" style="display:none">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <h2 style="font-size:16px;font-weight:700;margin:0">Audit Log</h2>
-        <button onclick="closeAuditLogs()" class="btn btn-outline btn-sm">Close</button>
+        <div style="display:flex;gap:6px">
+          <button onclick="clearAuditLogs()" class="btn btn-sm btn-danger flex items-center gap-1"><span class="ms" style="font-size:16px">delete_sweep</span> Clear All</button>
+          <button onclick="closeAuditLogs()" class="btn btn-outline btn-sm">Close</button>
+        </div>
       </div>
-      <p style="font-size:12px;color:var(--text2);margin:0 0 12px">Last 7 days of activity. Auto-purged after retention period.</p>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 12px">Critical actions, errors, role changes, and suspicious activity. Auto-purged after 7 days.</p>
       <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
         <table>
           <thead>
@@ -148,23 +152,33 @@ async function loadUsers() {
   if (error) { st("Error loading users: " + error.message, "e"); return; }
   var tbody = document.getElementById("user-table-body");
   var noUsers = document.getElementById("no-users");
+  var info = document.getElementById("admin-info");
   tbody.innerHTML = "";
-  if (!profiles || profiles.length === 0) { noUsers.style.display = "block"; return; }
+  if (!profiles || profiles.length === 0) { noUsers.style.display = "block"; info.textContent = ""; return; }
   noUsers.style.display = "none";
+  info.textContent = profiles.length + " total users";
   profiles.forEach(function(p, i) {
     var role = p.role || "viewer";
-    var badgeClass = role === "admin" ? "badge-admin" : role === "editor" ? "badge-editor" : "badge-viewer";
+    var banned = p.banned === true;
+    var badgeClass = banned ? "badge-admin" : (role === "admin" ? "badge-admin" : role === "editor" ? "badge-editor" : "badge-viewer");
     var tr = document.createElement("tr");
     tr.className = "au";
     tr.style.animationDelay = (i * 40) + "ms";
+    if (banned) tr.style.opacity = "0.5";
     tr.innerHTML = '<td><strong>' + (p.name || "—") + '</strong></td>' +
       '<td style="font-family:monospace;font-size:12px">' + (p.email || "—") + '</td>' +
-      '<td><span class="badge ' + badgeClass + '">' + role.toUpperCase() + '</span></td>' +
-      '<td><select class="inp" style="width:auto;padding:4px 8px;font-size:12px" onchange="updateRole(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\',this.value)">' +
-      '<option value="viewer"' + (role === "viewer" ? " selected" : "") + '>Viewer</option>' +
-      '<option value="editor"' + (role === "editor" ? " selected" : "") + '>Editor</option>' +
-      '<option value="admin"' + (role === "admin" ? " selected" : "") + '>Admin</option>' +
-      '</select></td>';
+      '<td>' +
+        '<select class="inp" style="width:auto;padding:4px 8px;font-size:12px" onchange="updateRole(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\',this.value)">' +
+        '<option value="viewer"' + (role === "viewer" ? " selected" : "") + '>Viewer</option>' +
+        '<option value="editor"' + (role === "editor" ? " selected" : "") + '>Editor</option>' +
+        '<option value="admin"' + (role === "admin" ? " selected" : "") + '>Admin</option>' +
+        '</select>' +
+      '</td>' +
+      '<td>' + (banned ? '<span class="badge badge-admin">BANNED</span>' : '<span class="badge" style="background:#e2e8f0;color:#16a34a">Active</span>') + '</td>' +
+      '<td style="display:flex;gap:4px">' +
+        '<button class="btn btn-sm ' + (banned ? 'btn-outline' : 'btn-danger') + '" onclick="' + (banned ? 'unbanUser' : 'banUser') + '(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\')">' + (banned ? 'Unban' : 'Ban') + '</button> ' +
+        '<button class="btn btn-sm btn-danger" onclick="removeUser(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\')">Remove</button>' +
+      '</td>';
     tbody.appendChild(tr);
   });
 }
@@ -173,13 +187,53 @@ async function updateRole(uid, email, name, newRole) {
   var { error } = await sb.from("profiles").update({ role: newRole }).eq("id", uid);
   if (error) { st("Error updating role: " + error.message, "e"); return; }
   st("Updated " + (name || email) + " → " + newRole.toUpperCase(), "s");
-  // Log to audit
   await sb.from("audit_logs").insert({
-    user_email: "admin@local",
-    user_name: "Admin",
-    action: "role_change",
-    asset_id: "",
+    user_email: "admin@local", user_name: "Admin", action: "role_change", asset_id: "",
     details: "Changed " + (name || email) + " role to " + newRole
+  });
+  loadUsers();
+}
+
+async function banUser(uid, email, name) {
+  if (!confirm("Ban " + (name || email) + "? They will be unable to log in.")) return;
+  var { error } = await sb.from("profiles").update({ banned: true }).eq("id", uid);
+  if (error) { st("Error banning user: " + error.message, "e"); return; }
+  st("Banned " + (name || email), "s");
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "user_banned", asset_id: "",
+    details: "Banned " + (name || email)
+  });
+  loadUsers();
+}
+
+async function unbanUser(uid, email, name) {
+  var { error } = await sb.from("profiles").update({ banned: false }).eq("id", uid);
+  if (error) { st("Error unbanning user: " + error.message, "e"); return; }
+  st("Unbanned " + (name || email), "s");
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "user_unbanned", asset_id: "",
+    details: "Unbanned " + (name || email)
+  });
+  loadUsers();
+}
+
+async function removeUser(uid, email, name) {
+  if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile and account. They will lose all access.")) return;
+  if (!confirm("Are you sure? This cannot be undone. Type OK to confirm.")) return;
+  // Delete from auth (admin API needed) + profiles
+  var { error: pErr } = await sb.from("profiles").delete().eq("id", uid);
+  if (pErr) { st("Error removing profile: " + pErr.message, "e"); return; }
+  // Try to delete from auth as well using admin endpoint
+  var STORAGE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjMwMjA4MSwiZXhwIjoyMDk3ODc4MDgxfQ.D1M72cLrUwtYPU0UHQDlqDPYJgIVPYuUYJbMG_PTVac";
+  var authResp = await fetch(SUPABASE_URL + "/auth/v1/admin/users/" + uid, {
+    method: "DELETE",
+    headers: { "apikey": STORAGE_KEY, "Authorization": "Bearer " + STORAGE_KEY }
+  });
+  if (!authResp.ok) { var t = await authResp.text(); st("Profile deleted but auth removal failed: " + (t || authResp.statusText), "w"); }
+  else { st("Removed " + (name || email) + " completely", "s"); }
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "user_removed", asset_id: "",
+    details: "Removed user " + (name || email)
   });
   loadUsers();
 }
@@ -192,7 +246,7 @@ async function loadAuditLogs() {
     .select("*")
     .gte("created_at", sevenDaysAgo)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(200);
   if (error) { st("Error loading audit logs: " + error.message, "e"); return; }
   var tbody = document.getElementById("audit-table-body");
   var noAudit = document.getElementById("no-audit");
@@ -200,10 +254,12 @@ async function loadAuditLogs() {
   if (!logs || logs.length === 0) { noAudit.style.display = "block"; return; }
   noAudit.style.display = "none";
   logs.forEach(function(l) {
+    var isErr = l.action.includes("error") || l.details?.includes("suspicious") || l.details?.includes("failed");
     var tr = document.createElement("tr");
+    if (isErr) tr.style.background = "#fef2f2";
     tr.innerHTML = '<td style="font-family:monospace;font-size:11px">' + new Date(l.created_at).toLocaleString() + '</td>' +
       '<td>' + (l.user_name || l.user_email) + '</td>' +
-      '<td><span class="badge" style="background:#e2e8f0;color:#0f172a">' + l.action.replace(/_/g, " ") + '</span></td>' +
+      '<td><span class="badge" style="background:' + (isErr ? '#dc2626' : '#e2e8f0') + ';color:' + (isErr ? '#fff' : '#0f172a') + '">' + l.action.replace(/_/g, " ") + '</span></td>' +
       '<td style="font-family:monospace;font-size:12px">' + (l.asset_id || "—") + '</td>' +
       '<td style="font-size:12px;color:var(--text2)">' + (l.details || "") + '</td>';
     tbody.appendChild(tr);
@@ -214,27 +270,40 @@ function closeAuditLogs() {
   document.getElementById("audit-section").style.display = "none";
 }
 
+async function clearAuditLogs() {
+  if (!confirm("Delete ALL audit logs? This cannot be undone.")) return;
+  var { error } = await sb.from("audit_logs").delete().gte("created_at", "2000-01-01");
+  if (error) { st("Error clearing logs: " + error.message, "e"); return; }
+  st("All audit logs cleared", "s");
+  closeAuditLogs();
+}
+
 // ============ THUMBNAIL MANAGER ============
 function normalizeShowName(title) {
   if (!title) return "";
-  var sep = title.indexOf(": ");
-  if (sep > 0) return title.substring(0, sep).trim();
-  sep = title.indexOf(" — ");
-  if (sep > 0) return title.substring(0, sep).trim();
-  sep = title.indexOf(" - ");
-  if (sep > 0) return title.substring(0, sep).trim();
-  return title.trim();
+  var t = title.trim();
+  var seps = [" — ", " – ", " - ", ": ", " #"];
+  for (var si = 0; si < seps.length; si++) {
+    var idx = t.indexOf(seps[si]);
+    if (idx > 0) {
+      var prefix = t.substring(0, idx).trim();
+      if (prefix.length >= 3) return prefix;
+    }
+  }
+  var vsIdx = t.toLowerCase().indexOf(" vs.");
+  if (vsIdx > 2) {
+    var teamPrefix = t.substring(0, vsIdx).trim();
+    if (teamPrefix.length >= 3) return teamPrefix;
+  }
+  return t;
 }
 
 var allShowGroups = [];
 var thumbnailData = {};
 
 async function loadThumbnailManager() {
-  // Get all unique titles from segments
   var { data: segments, error } = await sb.from("segments").select("title");
   if (error) { st("Error loading shows: " + error.message, "e"); return; }
-  
-  // Group by normalized base name
   var groups = {};
   (segments || []).forEach(function(s) {
     var t = (s.title || "").trim();
@@ -242,19 +311,14 @@ async function loadThumbnailManager() {
     var base = normalizeShowName(t).toLowerCase();
     if (!groups[base]) groups[base] = { name: t, episodes: {} };
     groups[base].episodes[t.toLowerCase()] = true;
-    // Keep the shortest title as display name (usually the base name)
     if (t.length < groups[base].name.length || groups[base].episodes[base]) groups[base].name = t;
   });
-  
   allShowGroups = Object.keys(groups).sort().map(function(k) {
     return { key: k, name: groups[k].name, count: Object.keys(groups[k].episodes).length };
   });
-  
-  // Load existing thumbnails
   var { data: thumbs } = await sb.from("asset_thumbnails").select("title,thumbnail_url");
   thumbnailData = {};
   (thumbs || []).forEach(function(t) { thumbnailData[t.title.toLowerCase()] = t.thumbnail_url; });
-  
   renderThumbnailList();
 }
 
@@ -263,105 +327,103 @@ function renderThumbnailList() {
   var noThumbs = document.getElementById("no-thumbs");
   if (!container) return;
   container.innerHTML = "";
-  
   var q = (document.getElementById("thumb-search")?.value || "").trim().toLowerCase();
   var filtered = q ? allShowGroups.filter(function(g) { return g.name.toLowerCase().includes(q) || g.key.includes(q); }) : allShowGroups;
-  
   if (!filtered.length) { noThumbs.style.display = "block"; return; }
   noThumbs.style.display = "none";
-  
   filtered.forEach(function(group) {
     var url = thumbnailData[group.key] || null;
     var card = document.createElement("div");
     card.style.cssText = "background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow .2s";
-    
     var imgContainer = document.createElement("div");
     imgContainer.style.cssText = "position:relative;height:120px;background:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden";
     imgContainer.title = "Click to upload thumbnail";
-    
     var fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "image/*";
     fileInput.style.display = "none";
     fileInput.onchange = function() { uploadThumbnail(group.key, group.name, fileInput); };
-    
     if (url) {
       var img = document.createElement("img");
       img.src = url;
       img.style.cssText = "width:100%;height:100%;object-fit:cover";
       img.onerror = function() { img.style.display = "none"; showPlaceholder(imgContainer); };
       imgContainer.appendChild(img);
-    } else {
-      showPlaceholder(imgContainer);
-    }
-    
+    } else { showPlaceholder(imgContainer); }
     var uploadOverlay = document.createElement("div");
     uploadOverlay.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);opacity:0;transition:opacity .2s;color:#fff;font-size:13px;font-weight:700";
     uploadOverlay.innerHTML = '<span class="ms" style="font-size:32px">cloud_upload</span>';
     imgContainer.onmouseenter = function() { uploadOverlay.style.opacity = "1" };
     imgContainer.onmouseleave = function() { uploadOverlay.style.opacity = "0" };
     imgContainer.onclick = function() { fileInput.click(); };
-    
     imgContainer.appendChild(uploadOverlay);
     imgContainer.appendChild(fileInput);
     card.appendChild(imgContainer);
-    
     var label = document.createElement("div");
     label.style.cssText = "padding:10px 12px 4px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
     label.textContent = group.name;
     card.appendChild(label);
-    
     if (group.count > 1) {
       var sub = document.createElement("div");
       sub.style.cssText = "padding:0 12px 10px;font-size:11px;color:var(--text2)";
       sub.textContent = group.count + " episodes";
       card.appendChild(sub);
     }
-    
     container.appendChild(card);
   });
 }
 
-function showPlaceholder(el) {
-  el.innerHTML = '<span class="ms" style="font-size:40px;color:#94a3b8">image</span>';
-}
+function showPlaceholder(el) { el.innerHTML = '<span class="ms" style="font-size:40px;color:#94a3b8">image</span>'; }
 
-function showThumbSpinner(el) {
-  el.innerHTML = '<span style="width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;display:block"></span>';
+function showProgress(el, pct) {
+  el.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f1f5f9;gap:8px"><div style="width:80%;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--primary);border-radius:3px;transition:width .2s"></div></div><span style="font-size:11px;color:var(--text2);font-weight:600">' + pct + '%</span></div>';
 }
 
 async function uploadThumbnail(key, displayName, fileInput) {
   var file = fileInput.files[0];
   if (!file) return;
   if (file.size > 2 * 1024 * 1024) { st("Image too large. Max 2MB.", "e"); fileInput.value = ""; return; }
-  
-  // Show loading state on the card's img container
   var card = fileInput.closest("div");
   var imgContainer = card.querySelector("div");
-  showThumbSpinner(imgContainer);
+  showProgress(imgContainer, 0);
   
-  // Upload to Supabase Storage
   var fileName = key.replace(/[^a-z0-9]+/g, "-") + "-" + Date.now() + "." + (file.name.split(".").pop() || "jpg");
-  var { data: uploadData, error: uploadError } = await sb.storage.from("thumbnails").upload(fileName, file, { upsert: true });
+  var STORAGE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjMwMjA4MSwiZXhwIjoyMDk3ODc4MDgxfQ.D1M72cLrUwtYPU0UHQDlqDPYJgIVPYuUYJbMG_PTVac";
   
-  if (uploadError) { st("Upload error: " + uploadError.message, "e"); showPlaceholder(imgContainer); fileInput.value = ""; return; }
+  // Use XMLHttpRequest for progress tracking
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "https://fzbktwyurskhvtwkklzu.supabase.co/storage/v1/object/thumbnails/" + encodeURIComponent(fileName));
+  xhr.setRequestHeader("authorization", "Bearer " + STORAGE_KEY);
+  xhr.setRequestHeader("apikey", STORAGE_KEY);
+  xhr.setRequestHeader("x-upsert", "true");
   
-  // Get public URL
-  var publicUrl = sb.storage.from("thumbnails").getPublicUrl(fileName).data.publicUrl;
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) showProgress(imgContainer, Math.round((e.loaded / e.total) * 100));
+  };
   
-  // Save URL to DB (use normalized key as title)
-  var { error: dbError } = await sb.from("asset_thumbnails").upsert(
-    { title: key, thumbnail_url: publicUrl },
-    { onConflict: "title" }
-  );
+  xhr.onload = async function() {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      var publicUrl = "https://fzbktwyurskhvtwkklzu.supabase.co/storage/v1/object/public/thumbnails/" + encodeURIComponent(fileName);
+      var { error: dbError } = await sb.from("asset_thumbnails").upsert(
+        { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
+      );
+      if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
+      else {
+        thumbnailData[key] = publicUrl;
+        st("Thumbnail saved for " + displayName, "s");
+        renderThumbnailList();
+      }
+    } else {
+      var errTxt = xhr.responseText;
+      st("Upload error: " + (errTxt || xhr.statusText), "e");
+      showPlaceholder(imgContainer);
+    }
+    fileInput.value = "";
+  };
   
-  if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
-  else {
-    thumbnailData[key] = publicUrl;
-    st("Thumbnail saved for " + displayName, "s");
-    renderThumbnailList();
-  }
-  fileInput.value = "";
+  xhr.onerror = function() { st("Upload failed: network error", "e"); showPlaceholder(imgContainer); fileInput.value = ""; };
+  
+  xhr.send(file);
 }
 </script>
 </body>

@@ -68,12 +68,11 @@ function highlightSearchResult() {
     });
 }
 
-function selectSearchResult(index, viewOnly = false) {
+function selectSearchResult(index) {
     const selectedAsset = searchResultsList[index];
     if (!selectedAsset) return;
     closeModal("m-search");
-    if (viewOnly) openFso(selectedAsset.id);
-    else loadToEditor(selectedAsset.id);
+    openFso(selectedAsset.id);
 }
 
 function renderDash() {
@@ -184,10 +183,10 @@ function toggleDashShowAll() {
 function renderAssets() {
     const selectedYear = document.getElementById("a-yr")?.value || "All";
     const selectedMonth = document.getElementById("a-mo")?.value || "All";
-    const tbody = document.getElementById("atbody");
-    if(!tbody) return;
+    const container = document.getElementById("assets-container");
+    if (!container) { renderAssetsLegacy(); return; }
     
-    tbody.innerHTML = "";
+    container.innerHTML = "";
     const filteredAssets = grpAssets(selectedYear, selectedMonth);
     
     if(document.getElementById("cat-cnt")) {
@@ -195,62 +194,110 @@ function renderAssets() {
     }
     
     if (!filteredAssets.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</td></tr>`;
+        container.innerHTML = '<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';
         return;
     }
     
-    filteredAssets.forEach((asset, i) => {
-        const isLive = (asset.type || "").toLowerCase() === "live";
-        const badgeHtml = isLive ? `<span class="px-2 py-1 bg-error text-white rounded-md text-[10px] font-bold font-mono uppercase">LIVE</span>` : `<span class="px-2 py-1 bg-pf text-primary rounded-md text-[10px] font-bold font-mono border border-primary/20">REC</span>`;
-        const totalDurationSecs = asset.rows.reduce((sum, r) => sum + toSec(r[9] || ""), 0);
-        const { gradient, code } = assetThumbnail(asset.id, asset.title);
-        
-        const tr = document.createElement("tr");
-        tr.className = "hover:bg-sclo smooth group cursor-pointer au asset-row";
-        tr.style.animationDelay = `${Math.min(i * 20, 200)}ms`;
-        tr.dataset.assetId = asset.id;
-        
-        var tThumbUrl = getThumbnailUrl(asset.title);
-        var tThumbStyle = tThumbUrl ? "background:url(" + tThumbUrl + ") center/cover no-repeat" : "background:" + gradient;
-        tr.innerHTML = `
-            <td class="py-4 px-2"><input type="checkbox" class="asset-select cursor-pointer" onchange="toggleAssetSelect('${asset.id}',this.checked)" onclick="event.stopPropagation()"></td>
-            <td class="py-4 px-6"><div class="w-14 h-9 rounded-lg border border-ov/40 shadow-sm overflow-hidden relative flex items-center justify-center text-white font-bold text-[10px] font-mono" style="${tThumbStyle}">${tThumbUrl ? "" : code}</div></td>
-            <td class="py-4 px-6">
-                <div class="font-bold text-primary font-mono text-[15px]">${sanitizeHTML(asset.id)}</div>
-                <div class="text-[13px] font-medium truncate max-w-[200px] mt-1 text-secondary">${sanitizeHTML(asset.title)}</div>
-            </td>
-            <td class="py-4 px-6 text-[13px] text-secondary font-mono">${fmtD(asset.date, {day:"2-digit", month:"short", year:"numeric"})}</td>
-            <td class="py-4 px-6">
-                ${badgeHtml}
-                ${asset.status === "Ended" ? '<span class="ml-1 px-1.5 py-0.5 bg-ec text-error rounded text-[9px] font-bold font-mono">ENDED</span>' : asset.lockedBy ? '<span class="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-bold font-mono">LOCKED</span>' : ''}
-            </td>
-            <td class="py-4 px-6">
-                <div class="flex items-center gap-1.5">
-                    ${asset.ownerChain ? asset.ownerChain.map(function(oname, oi) {
-                        var oinfo = getUserInfo(oname);
-                        var oemail = oinfo ? oinfo.email : "";
-                        return getUserAvatarHtml(oemail, oname, 24);
-                    }).join('<span style="margin-left:-4px"></span>') : getUserAvatarHtml("", asset.owner, 24)}
-                    <span class="text-[13px] text-secondary truncate max-w-[180px] font-medium" style="margin-left:4px">${sanitizeHTML(asset.allOwners || asset.owner)}</span>
-                </div>
-            </td>
-            <td class="py-4 px-6 text-right">
-                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 smooth">
-                    <span class="text-[12px] font-mono text-on-surface font-bold mr-3 hidden sm:inline">${tcStr(totalDurationSecs)}</span>
-                    <button onclick="event.stopPropagation(); openFso('${asset.id}')" class="w-9 h-9 rounded-xl text-secondary hover:text-primary hover:bg-sc flex items-center justify-center border border-transparent hover:border-ov/50 ripple-host" title="View Detail"><span class="ms text-[18px]">visibility</span></button>
-                    <button onclick="event.stopPropagation(); loadToEditor('${asset.id}')" class="w-9 h-9 rounded-xl text-secondary hover:text-primary hover:bg-sc flex items-center justify-center border border-transparent hover:border-ov/50 ripple-host" title="Edit"><span class="ms text-[18px]">edit</span></button>
-                </div>
-            </td>
-        `;
-        
-        tr.onclick = () => openFso(asset.id);
-        tr.ondblclick = (function(aid, rowEl){
-          return function(e){
-            e.stopPropagation();
-            var cb=rowEl.querySelector(".asset-select");
-            if(cb){cb.checked=!cb.checked;toggleAssetSelect(aid,cb.checked);rowEl.style.background=cb.checked?"var(--c-pf)":"transparent"}
-          }
-        })(asset.id, tr);
-        tbody.appendChild(tr);
+    // Group by year-month
+    var groups = {};
+    filteredAssets.forEach(function(a) {
+        var d = a.date ? new Date(a.date) : null;
+        var key = d && !isNaN(d) ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") : "Unknown";
+        if (!groups[key]) groups[key] = { label: key, name: d && !isNaN(d) ? d.toLocaleString("default", { month: "long", year: "numeric" }) : "Unknown", assets: [] };
+        groups[key].assets.push(a);
     });
+    var sortedKeys = Object.keys(groups).sort().reverse();
+    
+    sortedKeys.forEach(function(key) {
+        var g = groups[key];
+        var isOpen = localStorage.getItem("assets_group_" + key) !== "closed";
+        
+        var section = document.createElement("div");
+        section.className = "card ts overflow-hidden";
+        
+        // Header
+        var hdr = document.createElement("div");
+        hdr.className = "flex items-center justify-between px-5 py-3 cursor-pointer select-none hover:bg-sclo smooth border-b border-ov/30";
+        hdr.setAttribute("data-assets-group", key);
+        hdr.onclick = function() { toggleAssetsGroup(this.getAttribute("data-assets-group")); };
+        hdr.innerHTML = '<div class="flex items-center gap-3"><span class="ms text-[20px] text-primary smooth transition-transform' + (isOpen ? '' : ' -rotate-90') + '">expand_more</span><span class="font-bold text-[15px] text-on-surface">' + g.name + '</span><span class="text-xs text-secondary font-mono">' + g.assets.length + ' asset' + (g.assets.length !== 1 ? "s" : "") + '</span></div>';
+        section.appendChild(hdr);
+        
+        var bodyWrap = document.createElement("div");
+        bodyWrap.className = "smooth" + (isOpen ? "" : " hidden");
+        bodyWrap.id = "assets-body-" + key;
+        
+        var tableHtml = '<table class="w-full text-left" style="min-width:800px"><thead class="border-b border-ov/50 text-[11px] text-secondary uppercase tracking-wider font-bold font-mono bg-sclo"><tr><th class="py-4 px-2 w-10"><input type="checkbox" onchange="toggleSelectAllAssets(this.checked)" class="cursor-pointer"></th><th class="py-4 px-6 w-20">Media</th><th class="py-4 px-6">Asset ID &amp; Event</th><th class="py-4 px-6">Date</th><th class="py-4 px-6">Type</th><th class="py-4 px-6">Owner</th><th class="py-4 px-6 text-right">Actions</th></tr></thead><tbody class="divide-y divide-ov/30 text-sm bg-scl">';
+        
+        g.assets.forEach(function(asset, i) {
+            const isLive = (asset.type || "").toLowerCase() === "live";
+            const badgeHtml = isLive ? '<span class="px-2 py-1 bg-error text-white rounded-md text-[10px] font-bold font-mono uppercase">LIVE</span>' : '<span class="px-2 py-1 bg-pf text-primary rounded-md text-[10px] font-bold font-mono border border-primary/20">REC</span>';
+            const totalDurationSecs = asset.rows.reduce(function(sum, r) { return sum + toSec(r[9] || ""); }, 0);
+            const { gradient, code } = assetThumbnail(asset.id, asset.title);
+            var tThumbUrl = getThumbnailUrl(asset.title);
+            var tThumbStyle = tThumbUrl ? "background:url(" + tThumbUrl + ") center/cover no-repeat" : "background:" + gradient;
+            
+            tableHtml += '<tr class="hover:bg-sclo smooth group cursor-pointer au asset-row" style="animation-delay:' + Math.min(i * 20, 200) + 'ms" data-asset-id="' + asset.id + '">';
+            tableHtml += '<td class="py-4 px-2"><input type="checkbox" class="asset-select cursor-pointer" onchange="toggleAssetSelect(\'' + asset.id + '\',this.checked)" onclick="event.stopPropagation()"></td>';
+            tableHtml += '<td class="py-4 px-6"><div class="w-14 h-9 rounded-lg border border-ov/40 shadow-sm overflow-hidden relative flex items-center justify-center text-white font-bold text-[10px] font-mono" style="' + tThumbStyle + '">' + (tThumbUrl ? "" : code) + '</div></td>';
+            tableHtml += '<td class="py-4 px-6"><div class="font-bold text-primary font-mono text-[15px]">' + sanitizeHTML(asset.id) + '</div><div class="text-[13px] font-medium truncate max-w-[200px] mt-1 text-secondary">' + sanitizeHTML(asset.title) + '</div></td>';
+            tableHtml += '<td class="py-4 px-6 text-[13px] text-secondary font-mono">' + fmtD(asset.date, { day: "2-digit", month: "short", year: "numeric" }) + '</td>';
+            tableHtml += '<td class="py-4 px-6">' + badgeHtml + (asset.status === "Ended" ? '<span class="ml-1 px-1.5 py-0.5 bg-ec text-error rounded text-[9px] font-bold font-mono">ENDED</span>' : asset.lockedBy ? '<span class="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-bold font-mono">LOCKED</span>' : '') + '</td>';
+            tableHtml += '<td class="py-4 px-6"><div class="flex items-center gap-1.5">';
+            if (asset.ownerChain) {
+                asset.ownerChain.forEach(function(oname) {
+                    var oinfo = getUserInfo(oname);
+                    var oemail = oinfo ? oinfo.email : "";
+                    tableHtml += getUserAvatarHtml(oemail, oname, 24);
+                });
+            } else {
+                tableHtml += getUserAvatarHtml("", asset.owner, 24);
+            }
+            tableHtml += '<span class="text-[13px] text-secondary truncate max-w-[180px] font-medium" style="margin-left:4px">' + sanitizeHTML(asset.allOwners || asset.owner) + '</span></div></td>';
+            tableHtml += '<td class="py-4 px-6 text-right"><div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 smooth"><span class="text-[12px] font-mono text-on-surface font-bold mr-3 hidden sm:inline">' + tcStr(totalDurationSecs) + '</span><button onclick="event.stopPropagation(); openFso(\'' + asset.id + '\')" class="w-9 h-9 rounded-xl text-secondary hover:text-primary hover:bg-sc flex items-center justify-center border border-transparent hover:border-ov/50 ripple-host" title="View Detail"><span class="ms text-[18px]">visibility</span></button><button onclick="event.stopPropagation(); loadToEditor(\'' + asset.id + '\')" class="w-9 h-9 rounded-xl text-secondary hover:text-primary hover:bg-sc flex items-center justify-center border border-transparent hover:border-ov/50 ripple-host" title="Edit"><span class="ms text-[18px]">edit</span></button></div></td>';
+            tableHtml += '</tr>';
+        });
+        
+        tableHtml += '</tbody></table>';
+        bodyWrap.innerHTML = tableHtml;
+        section.appendChild(bodyWrap);
+        container.appendChild(section);
+        
+        // Attach row click handlers
+        var rows = bodyWrap.querySelectorAll(".asset-row");
+        rows.forEach(function(tr) {
+            var aid = tr.getAttribute("data-asset-id");
+            tr.onclick = function() { openFso(aid); };
+            tr.ondblclick = function(e) {
+                e.stopPropagation();
+                var cb = tr.querySelector(".asset-select");
+                if (cb) { cb.checked = !cb.checked; toggleAssetSelect(aid, cb.checked); tr.style.background = cb.checked ? "var(--c-pf)" : "transparent"; }
+            };
+        });
+    });
+}
+
+function toggleAssetsGroup(key) {
+    var body = document.getElementById("assets-body-" + key);
+    if (!body) return;
+    var parent = body.parentElement;
+    var hdr = parent ? parent.querySelector('[data-assets-group="' + key + '"]') : null;
+    var closed = body.classList.contains("hidden");
+    if (closed) {
+        body.classList.remove("hidden");
+        localStorage.removeItem("assets_group_" + key);
+    } else {
+        body.classList.add("hidden");
+        localStorage.setItem("assets_group_" + key, "closed");
+    }
+    if (hdr) {
+        var icon = hdr.querySelector(".ms");
+        if (icon) icon.classList.toggle("-rotate-90");
+    }
+}
+
+function renderAssetsLegacy() {
+    // Fallback if assets-container is missing
+    var tbody = document.getElementById("atbody");
+    if (!tbody) return;
 }
