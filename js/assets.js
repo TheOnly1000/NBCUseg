@@ -124,6 +124,18 @@ function applyAssetThumbnail(container, assetId, title) {
 // ============================================================================
 window.thumbnailCache = {};
 
+function normalizeShowName(title) {
+    if (!title) return "";
+    // Extract base name before colon, em dash, or " - " (for episode-based titles)
+    var sep = title.indexOf(": ");
+    if (sep > 0) return title.substring(0, sep).trim();
+    sep = title.indexOf(" — ");
+    if (sep > 0) return title.substring(0, sep).trim();
+    sep = title.indexOf(" - ");
+    if (sep > 0) return title.substring(0, sep).trim();
+    return title.trim();
+}
+
 async function loadThumbnails() {
     try {
         var { data } = await sb.from("asset_thumbnails").select("title,thumbnail_url");
@@ -135,7 +147,11 @@ async function loadThumbnails() {
 
 function getThumbnailUrl(title) {
     if (!title) return null;
-    return thumbnailCache[title.toLowerCase()] || null;
+    // Try exact title first, then normalized base name
+    var key = title.toLowerCase();
+    if (thumbnailCache[key]) return thumbnailCache[key];
+    var norm = normalizeShowName(title).toLowerCase();
+    return thumbnailCache[norm] || null;
 }
 
 function getThumbnailHtml(title, fallbackGradient, size) {
@@ -153,14 +169,18 @@ function getThumbnailHtml(title, fallbackGradient, size) {
 async function fetchThumbnailForTitle(title) {
     if (!title) return;
     var key = title.toLowerCase();
-    if (thumbnailCache[key]) return; // already cached
+    var norm = normalizeShowName(title).toLowerCase();
+    if (thumbnailCache[key] || thumbnailCache[norm]) return; // already cached
     
     try {
         var thumbnailSrc = null;
         
+        // Use normalized name for API search (better results for base show)
+        var searchTerm = norm || key;
+        
         // Source 1: TVMaze (free, no key, great for TV shows)
         if (!thumbnailSrc) {
-            var tvmUrl = "https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(title);
+            var tvmUrl = "https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(searchTerm);
             var tvmRes = await fetch(tvmUrl);
             var tvmData = await tvmRes.json();
             if (tvmData && tvmData.length > 0 && tvmData[0].show && tvmData[0].show.image) {
@@ -170,7 +190,7 @@ async function fetchThumbnailForTitle(title) {
         
         // Source 3: Wikipedia (try multiple query variations)
         if (!thumbnailSrc) {
-            var wikiQueries = [title, title + " TV series", title + " television show", title + " film"];
+            var wikiQueries = [searchTerm, searchTerm + " TV series", searchTerm + " television show", searchTerm + " film"];
             for (var wqi2 = 0; wqi2 < wikiQueries.length && !thumbnailSrc; wqi2++) {
                 var wikiSearch = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=" + encodeURIComponent(wikiQueries[wqi2]) + "&format=json&origin=*&srlimit=3";
                 var wsRes = await fetch(wikiSearch);
@@ -196,7 +216,7 @@ async function fetchThumbnailForTitle(title) {
         
         // Source 4: DuckDuckGo Instant Answer (last resort)
         if (!thumbnailSrc) {
-            var ddgUrl = "https://api.duckduckgo.com/?q=" + encodeURIComponent(title) + "&format=json&no_html=1&skip_disambig=1&t=segmentor_app";
+            var ddgUrl = "https://api.duckduckgo.com/?q=" + encodeURIComponent(searchTerm) + "&format=json&no_html=1&skip_disambig=1&t=segmentor_app";
             var ddgRes = await fetch(ddgUrl);
             var ddgData = await ddgRes.json();
             if (ddgData && ddgData.Image && ddgData.Image.indexOf("http") === 0) {
@@ -219,9 +239,12 @@ async function fetchThumbnailForTitle(title) {
         
         if (!thumbnailSrc) return;
         
-        // Save to DB
+        // Save to DB using normalized name as key
+        var saveKey = norm;
+        thumbnailCache[saveKey] = thumbnailSrc;
+        // Also populate exact title key so lookups for this exact title work
         thumbnailCache[key] = thumbnailSrc;
-        await sb.from("asset_thumbnails").upsert({ title: title, thumbnail_url: thumbnailSrc }, { onConflict: "title" });
+        await sb.from("asset_thumbnails").upsert({ title: saveKey, thumbnail_url: thumbnailSrc }, { onConflict: "title" });
         
         // Update any visible UI that shows this thumbnail
         renderDash();

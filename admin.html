@@ -215,20 +215,40 @@ function closeAuditLogs() {
 }
 
 // ============ THUMBNAIL MANAGER ============
-var allShowTitles = [];
+function normalizeShowName(title) {
+  if (!title) return "";
+  var sep = title.indexOf(": ");
+  if (sep > 0) return title.substring(0, sep).trim();
+  sep = title.indexOf(" — ");
+  if (sep > 0) return title.substring(0, sep).trim();
+  sep = title.indexOf(" - ");
+  if (sep > 0) return title.substring(0, sep).trim();
+  return title.trim();
+}
+
+var allShowGroups = [];
 var thumbnailData = {};
 
 async function loadThumbnailManager() {
   // Get all unique titles from segments
   var { data: segments, error } = await sb.from("segments").select("title");
   if (error) { st("Error loading shows: " + error.message, "e"); return; }
-  var seen = {};
-  allShowTitles = [];
+  
+  // Group by normalized base name
+  var groups = {};
   (segments || []).forEach(function(s) {
     var t = (s.title || "").trim();
-    if (t && !seen[t.toLowerCase()]) { seen[t.toLowerCase()] = true; allShowTitles.push(t); }
+    if (!t) return;
+    var base = normalizeShowName(t).toLowerCase();
+    if (!groups[base]) groups[base] = { name: t, episodes: {} };
+    groups[base].episodes[t.toLowerCase()] = true;
+    // Keep the shortest title as display name (usually the base name)
+    if (t.length < groups[base].name.length || groups[base].episodes[base]) groups[base].name = t;
   });
-  allShowTitles.sort();
+  
+  allShowGroups = Object.keys(groups).sort().map(function(k) {
+    return { key: k, name: groups[k].name, count: Object.keys(groups[k].episodes).length };
+  });
   
   // Load existing thumbnails
   var { data: thumbs } = await sb.from("asset_thumbnails").select("title,thumbnail_url");
@@ -245,18 +265,15 @@ function renderThumbnailList() {
   container.innerHTML = "";
   
   var q = (document.getElementById("thumb-search")?.value || "").trim().toLowerCase();
-  var filtered = q ? allShowTitles.filter(function(t) { return t.toLowerCase().includes(q); }) : allShowTitles;
+  var filtered = q ? allShowGroups.filter(function(g) { return g.name.toLowerCase().includes(q) || g.key.includes(q); }) : allShowGroups;
   
   if (!filtered.length) { noThumbs.style.display = "block"; return; }
   noThumbs.style.display = "none";
   
-  filtered.forEach(function(title) {
-    var key = title.toLowerCase();
-    var url = thumbnailData[key] || null;
+  filtered.forEach(function(group) {
+    var url = thumbnailData[group.key] || null;
     var card = document.createElement("div");
     card.style.cssText = "background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow .2s";
-    card.onmouseenter = function() { card.style.boxShadow = "0 4px 16px rgba(0,0,0,.1)" };
-    card.onmouseleave = function() { card.style.boxShadow = "none" };
     
     var imgContainer = document.createElement("div");
     imgContainer.style.cssText = "position:relative;height:120px;background:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden";
@@ -266,7 +283,7 @@ function renderThumbnailList() {
     fileInput.type = "file";
     fileInput.accept = "image/*";
     fileInput.style.display = "none";
-    fileInput.onchange = function(e) { uploadThumbnail(title, fileInput); };
+    fileInput.onchange = function() { uploadThumbnail(group.key, group.name, fileInput); };
     
     if (url) {
       var img = document.createElement("img");
@@ -290,9 +307,16 @@ function renderThumbnailList() {
     card.appendChild(imgContainer);
     
     var label = document.createElement("div");
-    label.style.cssText = "padding:10px 12px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
-    label.textContent = title;
+    label.style.cssText = "padding:10px 12px 4px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+    label.textContent = group.name;
     card.appendChild(label);
+    
+    if (group.count > 1) {
+      var sub = document.createElement("div");
+      sub.style.cssText = "padding:0 12px 10px;font-size:11px;color:var(--text2)";
+      sub.textContent = group.count + " episodes";
+      card.appendChild(sub);
+    }
     
     container.appendChild(card);
   });
@@ -306,37 +330,38 @@ function showThumbSpinner(el) {
   el.innerHTML = '<span style="width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite;display:block"></span>';
 }
 
-async function uploadThumbnail(title, fileInput) {
+async function uploadThumbnail(key, displayName, fileInput) {
   var file = fileInput.files[0];
   if (!file) return;
-  
-  // Validate file size (max 2MB)
   if (file.size > 2 * 1024 * 1024) { st("Image too large. Max 2MB.", "e"); fileInput.value = ""; return; }
   
-  // Read as data URL
-  var reader = new FileReader();
-  reader.onload = async function(e) {
-    var dataUrl = e.target.result;
-    
-    // Show loading state on the card's img container
-    var card = fileInput.closest("div");
-    var imgContainer = card.querySelector("div");
-    showThumbSpinner(imgContainer);
-    
-    // Save to DB
-    var { error } = await sb.from("asset_thumbnails").upsert(
-      { title: title, thumbnail_url: dataUrl },
-      { onConflict: "title" }
-    );
-    
-    if (error) { st("Error saving thumbnail: " + error.message, "e"); showPlaceholder(imgContainer); }
-    else {
-      thumbnailData[title.toLowerCase()] = dataUrl;
-      st("Thumbnail saved for " + title, "s");
-      renderThumbnailList();
-    }
-  };
-  reader.readAsDataURL(file);
+  // Show loading state on the card's img container
+  var card = fileInput.closest("div");
+  var imgContainer = card.querySelector("div");
+  showThumbSpinner(imgContainer);
+  
+  // Upload to Supabase Storage
+  var fileName = key.replace(/[^a-z0-9]+/g, "-") + "-" + Date.now() + "." + (file.name.split(".").pop() || "jpg");
+  var { data: uploadData, error: uploadError } = await sb.storage.from("thumbnails").upload(fileName, file, { upsert: true });
+  
+  if (uploadError) { st("Upload error: " + uploadError.message, "e"); showPlaceholder(imgContainer); fileInput.value = ""; return; }
+  
+  // Get public URL
+  var publicUrl = sb.storage.from("thumbnails").getPublicUrl(fileName).data.publicUrl;
+  
+  // Save URL to DB (use normalized key as title)
+  var { error: dbError } = await sb.from("asset_thumbnails").upsert(
+    { title: key, thumbnail_url: publicUrl },
+    { onConflict: "title" }
+  );
+  
+  if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
+  else {
+    thumbnailData[key] = publicUrl;
+    st("Thumbnail saved for " + displayName, "s");
+    renderThumbnailList();
+  }
+  fileInput.value = "";
 }
 </script>
 </body>
