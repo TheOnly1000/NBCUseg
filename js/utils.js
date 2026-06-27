@@ -112,6 +112,21 @@ function todayIst() {
     return d.getFullYear() + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0"+d.getDate()).slice(-2);
 }
 
+function todayEdt() {
+    var now = new Date();
+    var y = now.getFullYear();
+    var mar1 = new Date(y, 2, 1);
+    var marSun = mar1.getDay();
+    mar1.setDate(1 + ((7 - marSun) % 7) + 7);
+    var nov1 = new Date(y, 10, 1);
+    var novSun = nov1.getDay();
+    nov1.setDate(1 + ((7 - novSun) % 7));
+    var isEdt = now >= mar1 && now < nov1;
+    var edtMs = now.getTime() + (now.getTimezoneOffset() + (isEdt ? 240 : 300)) * 60000;
+    var edtDate = new Date(edtMs);
+    return edtDate.getFullYear() + "-" + ("0"+(edtDate.getMonth()+1)).slice(-2) + "-" + ("0"+edtDate.getDate()).slice(-2);
+}
+
 function addDays(dateStr, n) {
     var d = new Date(dateStr);
     d.setDate(d.getDate() + n);

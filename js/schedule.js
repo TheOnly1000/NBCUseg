@@ -169,16 +169,12 @@ function fetchScheduleFromSheet() {
             var timeOut24 = time12to24(timeOutFmt);
             var istInfo = timeIn24 ? edtToIstFull(cleanDate, timeIn24) : { istDate: cleanDate, istTime: "" };
             var endIstInfo = timeOut24 ? edtToIstFull(cleanDate, timeOut24) : { istDate: cleanDate, istTime: "" };
-            var istDate = istInfo.istDate;
-            // Only keep entries whose IST date falls within the window
-            if (istDate < windowStart || istDate > windowEnd) continue;
-            
             var existing = entryByRow[i];
             entries.push({
                 id: existing ? existing.id : null,
                 row_index: i,
                 schedule_date: cleanDate,
-                ist_date: istDate,
+                ist_date: istInfo.istDate,
                 event_type: typeVal,
                 series_name: seriesVal,
                 episode_title: episodeTitle || seriesVal,
@@ -382,12 +378,11 @@ function renderSchedule() {
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
     if (!tbody) return;
     
-    // Filter to IST buffer window: today-2 to today+2
+    // Filter by EDT date buffer window: today-2 to today+2
     var windowStart = addDays(todayIst(), -2);
     var windowEnd = addDays(todayIst(), 2);
     var filtered = scheduleEntries.filter(function(e) {
-        var d = e.ist_date || e.schedule_date;
-        return d >= windowStart && d <= windowEnd;
+        return e.schedule_date >= windowStart && e.schedule_date <= windowEnd;
     });
     
     if (filtered.length === 0) {
@@ -573,12 +568,12 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
     }
 
     var groups = {};
-    var today = todayIst();
+    var today = todayEdt();
     var upcomingToday = 0;
     var totalUpcoming = 0;
 
     entries.forEach(function(entry) {
-        var d = entry.ist_date || entry.schedule_date;
+        var d = entry.schedule_date;
         if (!d) return;
         if (!groups[d]) groups[d] = [];
         groups[d].push(entry);
