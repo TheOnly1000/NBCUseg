@@ -1,6 +1,29 @@
 // ============ TICKETS ============
 var ticketsCache=[];
-function generateTicketId(){return "TCK-"+Date.now()+"-"+Math.floor(Math.random()*1000)}
+function generateTicketId(){
+    var today = new Date();
+    var dateStr = today.getFullYear() + "-" + ("0"+(today.getMonth()+1)).slice(-2) + "-" + ("0"+today.getDate()).slice(-2);
+    var count = 1;
+    if (Array.isArray(ticketsCache)) {
+        count = ticketsCache.filter(function(t){ return t.ticket_id && t.ticket_id.indexOf(dateStr) === 0; }).length + 1;
+    }
+    return dateStr + "-" + count;
+}
+
+function copyTicketId(tid){
+    if (!tid) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(tid).then(function(){ showToast("Copied!", "s"); });
+    } else {
+        var ta = document.createElement("textarea");
+        ta.value = tid;
+        ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); showToast("Copied!", "s"); } catch(e) {}
+        document.body.removeChild(ta);
+    }
+}
 
 function loadTickets(){
   ticketsCache=ticketsCache||[];
@@ -42,7 +65,7 @@ function renderTicketsView(){
       var sc=t.status==="open"?"text-amber-500 font-bold":t.status==="resolved"?"text-green-500":"text-secondary";
       var vi=t.visibility==="personal"?"lock":"public";
       var tr='<tr class="hover:bg-sclo/50 smooth cursor-pointer" onclick="openTicketDetail(\''+t.id+'\')">';
-      tr+='<td class="py-3 px-4"><span class="font-mono text-xs font-bold text-primary">#'+escHtml(t.ticket_id||t.id)+'</span></td>';
+      tr+='<td class="py-3 px-4"><span class="font-mono text-xs font-bold text-primary">#'+escHtml(t.ticket_id||t.id)+'</span> <span class="ms text-[14px] text-secondary cursor-pointer hover:text-primary" onclick="event.stopPropagation();copyTicketId(\''+escHtml(t.ticket_id||t.id)+'\')" title="Copy ticket ID">content_copy</span></td>';
       tr+='<td class="py-3 px-4"><span class="text-sm truncate max-w-[250px]">'+escHtml(t.subject||"")+'</span></td>';
       tr+='<td class="py-3 px-4"><span class="ms text-[14px] text-secondary">'+vi+'</span></td>';
       tr+='<td class="py-3 px-4"><span class="text-xs text-secondary">'+escHtml(t.created_by_name||t.created_by_email||"")+'</span></td>';
@@ -243,7 +266,7 @@ function openTicketDetail(ticketId){
   var ce=document.getElementById("ticket-detail-content");
   if(!ce)return;
   var html='<div class="p-2">';
-  html+='<div class="flex items-center justify-between mb-4"><div><h2 class="font-bold text-lg">#'+escHtml(ticket.ticket_id||ticket.id)+' '+escHtml(ticket.subject)+'</h2>';
+  html+='<div class="flex items-center justify-between mb-4"><div><h2 class="font-bold text-lg">#'+escHtml(ticket.ticket_id||ticket.id)+' <span class="ms text-[16px] text-secondary cursor-pointer hover:text-primary align-middle" onclick="event.stopPropagation();copyTicketId(\''+escHtml(ticket.ticket_id||ticket.id)+'\')" title="Copy ticket ID">content_copy</span> '+escHtml(ticket.subject)+'</h2>';
   html+='<p class="text-xs text-secondary">by '+escHtml(ticket.created_by_name||ticket.created_by_email||"")+' on '+(ticket.created_at?new Date(ticket.created_at).toLocaleString():"")+'</p></div>';
   html+='<div class="flex gap-2">';
   if(ticket.status==="open"){
@@ -477,7 +500,7 @@ function loadFsComments(assetId){
     // Render tickets
     filteredTickets.forEach(function(t){
       var html='<div class="p-3 rounded-lg '+(t.visibility==="personal"?"border border-amber-200 bg-amber-50/30":"bg-sclo")+'">';
-      html+='<div class="flex justify-between text-[10px] text-secondary mb-1"><span><span class="font-mono font-bold text-primary">#'+escHtml(t.ticket_id||t.id)+'</span> '+escHtml(t.created_by_name||t.created_by_email||"")+'</span>';
+      html+='<div class="flex justify-between text-[10px] text-secondary mb-1"><span><span class="font-mono font-bold text-primary">#'+escHtml(t.ticket_id||t.id)+'</span> <span class="ms text-[12px] text-secondary cursor-pointer hover:text-primary align-text-bottom" onclick="event.stopPropagation();copyTicketId(\''+escHtml(t.ticket_id||t.id)+'\')" title="Copy ticket ID">content_copy</span> '+escHtml(t.created_by_name||t.created_by_email||"")+'</span>';
       html+='<span class="flex items-center gap-1">'+(t.visibility==="personal"?'<span class="ms text-[10px]">lock</span>':'<span class="ms text-[10px]">public</span>')+new Date(t.created_at).toLocaleString()+'</span></div>';
       html+='<p class="text-sm font-medium">'+escHtml(t.subject)+'</p>';
       if(t.body)html+='<p class="text-xs text-secondary mt-1">'+escHtml(t.body)+'</p>';

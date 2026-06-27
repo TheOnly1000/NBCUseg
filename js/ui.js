@@ -45,7 +45,7 @@ function hideWelcomeScreen() {
 function showGlobalLoader(show) {
     const loader = document.getElementById("gl");
     if(!loader) return;
-    loader.style.display = show ? "flex" : "none";
+    if(show){loader.style.display="flex";startProgressBar()}else{loader.style.display="none";finishProgressBar()}
 }
 
 function showToast(message, type = "i", durationMs = 4000, actionObj = null) {

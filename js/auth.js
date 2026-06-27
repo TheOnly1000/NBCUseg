@@ -11,12 +11,24 @@ function toggleAuthScreens(type) {
     if (type === "signup") {
         loginForm.style.display = "none"; signupForm.style.display = "flex";
         if(headerTitle) headerTitle.textContent = "Create Account"; 
-        if(headerSub) headerSub.textContent = "Request access to Segmentor";
+        if(headerSub) headerSub.textContent = "Create your Segmentor account";
     } else {
         signupForm.style.display = "none"; loginForm.style.display = "flex";
         if(headerTitle) headerTitle.textContent = "Segmentor"; 
         if(headerSub) headerSub.textContent = "Enterprise Broadcast Pipeline";
     }
+}
+
+function handleForgotPassword() {
+    var email = document.getElementById("l-em")?.value.trim();
+    if (!email) { showToast("Enter your email address first.", "w"); return; }
+    sb.auth.resetPasswordForEmail(email).then(function(r) {
+        if (r.error) {
+            showToast("Failed: " + r.error.message, "e");
+        } else {
+            showToast("Password reset link sent to " + email, "s", 8000);
+        }
+    });
 }
 
 async function handleUserLogin(event) {
@@ -32,7 +44,11 @@ async function handleUserLogin(event) {
     var { data, error } = await sb.auth.signInWithPassword({ email: emailInput, password: passwordInput });
     
     if (error) {
-        showToast("Login failed: " + error.message, "e");
+        if (error.message && error.message.toLowerCase().indexOf("email not confirmed") >= 0) {
+            showToast("Email not confirmed yet. Check your inbox for the confirmation link.", "w", 8000);
+        } else {
+            showToast("Login failed: " + error.message, "e");
+        }
         if(loginBtn) { loginBtn.textContent = "Sign In"; loginBtn.disabled = false; }
         finishProgressBar();
         return;
@@ -49,10 +65,10 @@ async function handleUserLogin(event) {
         loadAllSegments();
         fetchNotifications();
         loadUserProfiles();
-        loadScheduleFromDb().then(function() {
+        loadScheduleFromDb(true).then(function() {
             if (schedulePollTimer) clearInterval(schedulePollTimer);
             schedulePollTimer = setInterval(function() {
-                loadScheduleFromDb().then(function() {
+                loadScheduleFromDb(true).then(function() {
                     var on = document.querySelector(".vp.on");
                     if (on && on.id === "vp-schedule") renderSchedule();
                     else if (on && on.id === "vp-dashboard") renderDash();
@@ -97,10 +113,37 @@ async function handleUserSignup(event) {
         return;
     }
     
-    showToast("Account created! You can now sign in.", "s", 6000);
+    showToast("Check your email for the confirmation link.", "s", 8000);
     toggleAuthScreens("login");
     if(signupBtn) { signupBtn.textContent = "Submit Request"; signupBtn.disabled = false; }
     finishProgressBar();
+    
+    // Auto-login if session created immediately (confirmation disabled)
+    if (data && data.session) {
+        currentUser = { id: data.session.user.id, email: data.session.user.email, name: data.session.user.user_metadata?.name || emailInput.split('@')[0], avatar: data.session.user.user_metadata?.avatar || "" };
+        updateSidebarProfile();
+        finishProgressBar();
+        showWelcomeScreen(currentUser.name, true);
+        setTimeout(function() {
+            var lastView = "dashboard";
+            try { var saved = localStorage.getItem('seg_last_view'); if (saved) lastView = saved; } catch(e) {}
+            nav(lastView); 
+            loadAllSegments();
+            fetchNotifications();
+            loadUserProfiles();
+            loadScheduleFromDb(true).then(function() {
+                if (schedulePollTimer) clearInterval(schedulePollTimer);
+                schedulePollTimer = setInterval(function() {
+                    loadScheduleFromDb(true).then(function() {
+                        var on = document.querySelector(".vp.on");
+                        if (on && on.id === "vp-schedule") renderSchedule();
+                        else if (on && on.id === "vp-dashboard") renderDash();
+                    });
+                }, 15000);
+            });
+            subscribeRealTime();
+        }, 400);
+    }
 }
 
 function processLogout() {

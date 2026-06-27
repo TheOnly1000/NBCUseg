@@ -353,14 +353,15 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
       <form id="lform" onsubmit="handleUserLogin(event)" style="display:flex;flex-direction:column;gap:16px">
         <input id="l-em" type="email" placeholder="Work Email Address" required class="inp w-full" autocomplete="email">
         <div class="relative"><input id="l-pw" type="password" placeholder="Password" required class="inp w-full pr-10"><button type="button" onclick="togglePasswordVisibility('l-pw',this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-secondary sm hover:text-on-surface"><span class="ms text-[18px]">visibility</span></button></div>
+        <div class="flex justify-end -mt-2"><a href="javascript:void(0)" onclick="handleForgotPassword()" class="text-xs text-primary font-bold hover:underline">Forgot Password?</a></div>
         <button id="l-btn" type="submit" class="btn-primary w-full mt-2 py-3 text-[15px]">Sign In</button>
-        <p class="text-center text-xs text-secondary mt-1">New user? <a href="javascript:void(0)" onclick="toggleAuthScreens('signup')" class="text-primary font-bold hover:underline">Request Access</a></p>
+        <p class="text-center text-xs text-secondary mt-1">New user? <a href="javascript:void(0)" onclick="toggleAuthScreens('signup')" class="text-primary font-bold hover:underline">Sign Up</a></p>
       </form>
       <form id="sform" onsubmit="handleUserSignup(event)" style="display:none;flex-direction:column;gap:16px">
         <input id="s-em" type="email" placeholder="Work Email Address" required class="inp w-full">
         <input id="s-nm" type="text" placeholder="Full Name" required class="inp w-full">
         <input id="s-pw" type="password" placeholder="Create Password" required class="inp w-full">
-        <button id="s-btn" type="submit" class="btn-primary w-full mt-2 py-3 text-[15px]">Submit Request</button>
+        <button id="s-btn" type="submit" class="btn-primary w-full mt-2 py-3 text-[15px]">Sign Up</button>
         <p class="text-center text-xs text-secondary mt-1">Have an account? <a href="javascript:void(0)" onclick="toggleAuthScreens('login')" class="text-primary font-bold hover:underline">Sign In</a></p>
       </form>
     </div>

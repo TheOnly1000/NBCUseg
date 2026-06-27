@@ -117,7 +117,11 @@ function renderNotifications(notifs) {
         return '<div onclick="' + onClick + '" style="cursor:pointer;display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:12px;' + bgStyle + '" class="' + (isUnread ? "" : "read-notif") + '">' +
             getUserAvatarHtml(n.from_email || "", fromName, 32) +
             '<div style="flex:1;min-width:0;' + readStyle + '"><p style="font-size:13px;font-weight:500">' + notifTypeIcon + ' ' + sanitizeHTML(n.message) + '</p>' +
-            '<p style="font-size:10px;color:var(--c-secondary);margin-top:2px">' + ts + '</p>' + readersHtml + '</div>' +
+            '<p style="font-size:10px;color:var(--c-secondary);margin-top:2px">' + ts + '</p>' + readersHtml +
+            (n.notification_type === "handover_request" ? '<button onclick="event.stopPropagation();directHandoverFromNotif(\'' + aid + '\',\'' + escHtml(n.from_email || "") + '\')" class="btn-primary text-xs px-3 py-1 mt-2">Give Handover</button>' : "") +
+            (n.notification_type === "handover_given" ? '<button onclick="event.stopPropagation();directTakeHandover(\'' + aid + '\')" class="btn-primary text-xs px-3 py-1 mt-2">Take Handover</button>' : "") +
+            (n.notification_type === "ticket" || n.notification_type === "ticket_comment" ? '<button onclick="event.stopPropagation();directOpenTicket(\'' + tid + '\')" class="btn-primary text-xs px-3 py-1 mt-2">' + (n.notification_type === "ticket_comment" ? "Open" : "Open Ticket") + '</button>' : "") +
+            '</div>' +
             '<span onclick="event.stopPropagation();clearNotif(\'' + nid + '\')" style="font-size:16px;color:var(--c-secondary);cursor:pointer;flex-shrink:0" title="Dismiss" class="ms">close</span>' +
         '</div>';
     }).join('');
@@ -125,6 +129,75 @@ function renderNotifications(notifs) {
         if (unreadCount > 0) { badge.classList.remove("hidden"); }
         else { badge.classList.add("hidden"); }
     }
+}
+
+function directHandoverFromNotif(assetId, fromEmail) {
+    if (!assetId || !fromEmail) { showToast("Missing asset or user.", "e"); return; }
+    closeModal("m-notif");
+    showGlobalLoader(true);
+    var now = new Date().toISOString();
+    var fromName = getUserInfo(fromEmail)?.name || fromEmail.split("@")[0];
+    var myName = currentUser.name || (currentUser.email || "").split("@")[0];
+    sb.from("segments").select("id, metadata, locked_by").eq("asset_id", assetId).then(function(r) {
+        if (r.error || !r.data || !r.data.length) {
+            showGlobalLoader(false); showToast("No segments found.", "e"); return;
+        }
+        var curLock = r.data[0].locked_by || "";
+        if (curLock.toLowerCase() !== (currentUser.email || "").toLowerCase()) {
+            showGlobalLoader(false); showToast("Asset no longer locked by you — already handed over.", "e"); return;
+        }
+        var promises = r.data.map(function(seg) {
+            var meta = seg.metadata || {};
+            if (!meta.transfers) meta.transfers = [];
+            meta.transfers.push({ from: myName, toEmail: fromEmail, toName: fromName, at: now });
+            return sb.from("segments").update({
+                status: "Handed Over",
+                handover_by: currentUser.email,
+                handover_to: fromEmail,
+                handover_at: now,
+                locked_by: fromEmail,
+                locked_at: now,
+                updated_at: now,
+                metadata: meta
+            }).eq("id", seg.id);
+        });
+        Promise.all(promises).then(function() {
+            sb.from("notifications").insert({
+                target_email: fromEmail, from_user: myName, from_email: currentUser.email, asset_id: assetId,
+                message: myName + " handed over " + assetId + " to you.",
+                notification_type: "handover_given",
+                created_at: now, read: false, sync_needed: true
+            }).then(function() {
+                showGlobalLoader(false);
+                showToast("Handed over " + assetId + " to " + fromName, "s");
+                loadAllSegments();
+                fetchNotifications();
+            });
+        }).catch(function(err) {
+            showGlobalLoader(false); showToast("Handover failed: " + err.message, "e");
+        });
+    });
+}
+
+function directOpenTicket(ticketId) {
+    if (!ticketId) return;
+    closeModal("m-notif");
+    nav("tickets");
+    var found = ticketsCache.find(function(t){return String(t.id)===String(ticketId)||String(t.ticket_id)===String(ticketId)});
+    if (found) {
+        setTimeout(function(){openTicketDetail(ticketId)}, 300);
+    } else {
+        loadTickets().then(function(){
+            setTimeout(function(){openTicketDetail(ticketId)}, 300);
+        });
+    }
+}
+
+function directTakeHandover(assetId) {
+    if (!assetId) return;
+    closeModal("m-notif");
+    nav("editor");
+    loadToEditor(assetId);
 }
 
 function handleNotifClick(notifId, assetId, ticketId, notifType) {

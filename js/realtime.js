@@ -149,56 +149,30 @@ function subscribeRealTime() {
         if(currentFullscreenAssetId)loadFsComments(currentFullscreenAssetId);
     },30000);
 
+    var _scheduleRtDebounce = null;
     if (scheduleChannel) sb.removeChannel(scheduleChannel);
     scheduleChannel = sb.channel("schedule-rt")
         .on("postgres_changes", { event: "*", schema: "public", table: "schedule_entries" }, function(payload) {
-            var r = payload.new || payload.old;
-            if (!r) return;
-            if (payload.eventType === "DELETE") {
-                scheduleEntries = scheduleEntries.filter(function(e) {
-                    return !(e.row_index === r.row_index && e.schedule_date === r.schedule_date);
-                });
-            } else {
-                var mapped = {
-                    id: r.id,
-                    row_index: r.row_index,
-                    schedule_date: r.schedule_date,
-                    event_type: r.event_type,
-                    series_name: r.series_name || "",
-                    episode_title: r.episode_title || "",
-                    season_no: r.season_no,
-                    episode_no: r.episode_no,
-                    sheet_asset_id: r.sheet_asset_id || "",
-                    start_time_edt: r.start_time_edt,
-                    end_time_edt: r.end_time_edt,
-                    start_time_ist: r.start_time_ist || edtToIst(r.schedule_date || "", r.start_time_edt || ""),
-                    end_time_ist: r.end_time_ist || edtToIst(r.schedule_date || "", r.end_time_edt || ""),
-                    assigned_to: r.assigned_to || "",
-                    status: r.status || "pending",
-                    launched_asset_id: r.launched_asset_id || "",
-                    segment_count: r.segment_count || ""
-                };
-                if (!r.segment_count && payload.eventType !== "DELETE") {
-                    var existingRt = scheduleEntries.find(function(se) {
-                        return se.row_index === r.row_index && se.schedule_date === r.schedule_date;
-                    });
-                    if (existingRt && existingRt.segment_count) mapped.segment_count = existingRt.segment_count;
-                }
-                var idx = -1;
-                for (var si = 0; si < scheduleEntries.length; si++) {
-                    if (scheduleEntries[si].row_index === r.row_index && scheduleEntries[si].schedule_date === r.schedule_date) {
-                        idx = si; break;
-                    }
-                }
-                if (idx >= 0) scheduleEntries[idx] = mapped;
-                else scheduleEntries.push(mapped);
-            }
-            refreshCurrentView();
+            if (_scheduleRtDebounce) clearTimeout(_scheduleRtDebounce);
+            _scheduleRtDebounce = setTimeout(function() {
+                loadScheduleFromDb(true);
+            }, 400);
         })
-        .subscribe(function(status) { if (status !== "SUBSCRIBED") console.warn("schedule-rt channel status:", status); });
+        .subscribe(function(status) {
+            if (status === "SUBSCRIBED") {
+                console.log("schedule-rt SUBSCRIBED");
+            } else if (status === "CHANNEL_ERROR") {
+                console.warn("schedule-rt CHANNEL_ERROR, retrying in 5s");
+                setTimeout(function() {
+                    if (scheduleChannel) { sb.removeChannel(scheduleChannel); scheduleChannel = null; }
+                    subscribeRealTime();
+                }, 5000);
+            } else {
+                console.warn("schedule-rt channel status:", status);
+            }
+        });
     if(window.schedulePollTimer)clearInterval(window.schedulePollTimer);
     window.schedulePollTimer=setInterval(function(){
-        var sv=document.getElementById("vp-schedule");
-        if(sv&&sv.classList.contains("on"))loadScheduleFromDb().then(function(){renderSchedule()});
+        loadScheduleFromDb(true);
     },30000);
 }

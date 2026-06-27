@@ -1,6 +1,7 @@
 // ===================== SCHEDULE FUNCTIONS =====================
 
 var scheduleEntries = [];
+var _dashUpcomingTimer = null;
 
 function getTypeInfo(typeVal) {
     if (!typeVal) return { display: "RECORD", isLive: false };
@@ -16,6 +17,13 @@ function gvizCellValue(cell) {
     return String(cell.v).trim();
 }
 
+function normDate(d) {
+    if (!d) return "";
+    if (typeof d === "string") return d.slice(0, 10);
+    if (d instanceof Date) return d.getFullYear() + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0"+d.getDate()).slice(-2);
+    return String(d).slice(0, 10);
+}
+
 function scheduleDbRead(dateFilter) {
     return sb.from("schedule_entries").select("*").eq("schedule_date", dateFilter).then(function(result) {
         if (result.error) {
@@ -24,17 +32,17 @@ function scheduleDbRead(dateFilter) {
             }
             return [];
         }
-        return result.data || [];
+        return (result.data || []).map(function(r) { r.schedule_date = normDate(r.schedule_date); return r; });
     });
 }
 
-function scheduleDbWrite(dateFilter) {
-    var rows = scheduleEntries.filter(function(e) { return e.schedule_date === dateFilter; });
+function scheduleDbWrite() {
+    var rows = scheduleEntries;
     if (rows.length === 0) return Promise.resolve();
     var payload = rows.map(function(e) {
         return {
             row_index: e.row_index,
-            schedule_date: e.schedule_date,
+            schedule_date: normDate(e.schedule_date),
             event_type: e.event_type,
             series_name: e.series_name || "",
             episode_title: e.episode_title || "",
@@ -51,8 +59,8 @@ function scheduleDbWrite(dateFilter) {
             segment_count: e.segment_count || ""
         };
     });
-    // Get existing IDs for this date, then delete by PK and insert fresh
-    return sb.from("schedule_entries").select("id").eq("schedule_date", dateFilter).then(function(idResult) {
+    // Delete ALL existing rows, then insert fresh
+    return sb.from("schedule_entries").select("id").then(function(idResult) {
         if (idResult.error) throw new Error("Read existing IDs failed: " + idResult.error.message);
         var existingIds = (idResult.data || []).map(function(r){return r.id});
         var delPromise = existingIds.length ? sb.from("schedule_entries").delete().in("id", existingIds) : Promise.resolve({error:null});
@@ -160,9 +168,10 @@ function syncScheduleFromSheet() {
     showGlobalLoader(true);
     var hideLoader = function(){try{showGlobalLoader(false)}catch(e){}};
     // Capture current assignments for this date before overwriting
+    var df = normDate(dateFilter);
     var oldAssignments = {};
     scheduleEntries.forEach(function(e) {
-        if (e.schedule_date === dateFilter) {
+        if (normDate(e.schedule_date) === df) {
             oldAssignments[e.row_index] = e;
         }
     });
@@ -185,15 +194,15 @@ function syncScheduleFromSheet() {
                     e.launched_asset_id = old.launched_asset_id || "";
                 }
             });
-            // Replace in-memory cache for this date
-            scheduleEntries = scheduleEntries.filter(function(e) { return e.schedule_date !== dateFilter; });
+            // Clear local cache entirely and replace with fresh sheet data
+            scheduleEntries = [];
             entries.forEach(function(e) { scheduleEntries.push(e); });
             scheduleEntries.sort(function(a, b) {
                 return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
             });
-            // Always delete old data and write fresh (full replace)
-            scheduleDbWrite(dateFilter).then(function() {
-                return loadScheduleFromDb();
+            // Wipe DB and write fresh
+            scheduleDbWrite().then(function() {
+                return loadScheduleFromDb(true);
             }).then(function() {
                 hideLoader();
                 renderSchedule(); renderDash();
@@ -238,33 +247,14 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
             en.launched_asset_id = existing.launched_asset_id || "";
         }
     });
-    // Remove old entries for this date from local cache
-    scheduleEntries = scheduleEntries.filter(function(e) { return e.schedule_date !== dateFilter; });
+    // Clear local cache entirely and replace with fresh data
+    scheduleEntries = [];
     entries.forEach(function(en) { scheduleEntries.push(en); });
     scheduleEntries.sort(function(a, b) {
         return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
     });
-    var dbPayload = entries.map(function(e) {
-        return {
-            row_index: e.row_index,
-            schedule_date: e.schedule_date,
-            event_type: e.event_type,
-            series_name: e.series_name || "",
-            episode_title: e.episode_title || "",
-            season_no: e.season_no,
-            episode_no: e.episode_no,
-            sheet_asset_id: e.sheet_asset_id || "",
-            start_time_edt: e.start_time_edt,
-            end_time_edt: e.end_time_edt,
-            start_time_ist: e.start_time_ist || "",
-            end_time_ist: e.end_time_ist || "",
-            assigned_to: e.assigned_to || "",
-            status: e.status || "pending",
-            launched_asset_id: e.launched_asset_id || ""
-        };
-    });
-    scheduleDbWrite(dateFilter).then(function() {
-        return loadScheduleFromDb();
+    scheduleDbWrite().then(function() {
+        return loadScheduleFromDb(true);
     }).then(function() {
         renderSchedule();
         renderDash();
@@ -277,45 +267,44 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
     });
 }
 
-function loadScheduleFromDb() {
-    showGlobalLoader(true);
+function scheduleRenderAll() {
+    var sv=document.getElementById("vp-schedule");
+    if(sv&&sv.classList.contains("on"))renderSchedule();
+    renderDashUpcoming();
+}
+
+function loadScheduleFromDb(silent) {
+    if(!silent)showGlobalLoader(true);
+    if(!sb){if(!silent)showGlobalLoader(false);scheduleRenderAll();return Promise.resolve()}
     return sb.from("schedule_entries").select("*").order("row_index", { ascending: true }).then(function(result) {
         if (result.error) { console.warn("Load schedule error:", result.error); return; }
-        if (result.data && result.data.length > 0) {
-            // Build lookup of current in-memory values to preserve fields not yet in DB
-            var existingMap = {};
-            scheduleEntries.forEach(function(e) {
-                existingMap[e.row_index + "|" + e.schedule_date] = e;
-            });
-            scheduleEntries = result.data.map(function(r) {
-                var key = r.row_index + "|" + r.schedule_date;
-                var existing = existingMap[key];
-                return {
-                    id: r.id,
-                    row_index: r.row_index,
-                    schedule_date: r.schedule_date,
-                    event_type: r.event_type,
-                    series_name: r.series_name || "",
-                    episode_title: r.episode_title,
-                    season_no: r.season_no,
-                    episode_no: r.episode_no,
-                    sheet_asset_id: r.sheet_asset_id || "",
-                    start_time_edt: r.start_time_edt,
-                    end_time_edt: r.end_time_edt,
-                    start_time_ist: r.start_time_ist || edtToIst(r.schedule_date || "", r.start_time_edt || ""),
-                    end_time_ist: r.end_time_ist || edtToIst(r.schedule_date || "", r.end_time_edt || ""),
-                    assigned_to: r.assigned_to || "",
-                    status: r.status || "pending",
-                    launched_asset_id: r.launched_asset_id || "",
-                    segment_count: r.segment_count || (existing ? existing.segment_count : "") || ""
-                };
-            });
-            scheduleEntries.sort(function(a, b) {
-                return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
-            });
-        }
-        showGlobalLoader(false);
-    }).catch(function(){showGlobalLoader(false)});
+        if ((result.data||[]).length > 0) console.log("schedule loaded:", (result.data||[]).length, "entries");
+        scheduleEntries = (result.data||[]).map(function(r) {
+            return {
+                id: r.id,
+                row_index: r.row_index,
+                schedule_date: normDate(r.schedule_date),
+                event_type: r.event_type,
+                series_name: r.series_name || "",
+                episode_title: r.episode_title || "",
+                season_no: r.season_no,
+                episode_no: r.episode_no,
+                sheet_asset_id: r.sheet_asset_id || "",
+                start_time_edt: r.start_time_edt,
+                end_time_edt: r.end_time_edt,
+                start_time_ist: r.start_time_ist || edtToIst(r.schedule_date || "", r.start_time_edt || ""),
+                end_time_ist: r.end_time_ist || edtToIst(r.schedule_date || "", r.end_time_edt || ""),
+                assigned_to: r.assigned_to || "",
+                status: r.status || "pending",
+                launched_asset_id: r.launched_asset_id || "",
+                segment_count: r.segment_count || ""
+            };
+        });
+        scheduleEntries.sort(function(a, b) {
+            return (a.schedule_date + " " + a.start_time_ist).localeCompare(b.schedule_date + " " + b.start_time_ist);
+        });
+        if(!silent)showGlobalLoader(false);
+    }).catch(function(e){console.warn("loadScheduleFromDb error:",e);if(!silent)showGlobalLoader(false)}).then(function(){scheduleRenderAll()});
 }
 
 
@@ -330,17 +319,15 @@ function renderSchedule() {
         dp.value = today.getFullYear() + "-" + ("0"+(today.getMonth()+1)).slice(-2) + "-" + ("0"+today.getDate()).slice(-2);
     }
     if (!tbody) return;
-    var dateFilter = dp ? dp.value : "";
-    if (!dateFilter) { tbody.innerHTML = ""; if (empty) empty.style.display = "block"; return; }
-    // Render directly from cache — schedule-rt subscription or poll already loaded fresh data from DB
-    var filtered = scheduleEntries.filter(function(e) { return e.schedule_date === dateFilter; });
-    if (filtered.length === 0) {
+    if (scheduleEntries.length === 0) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
-        if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">Click <strong>Sync from Sheet</strong> to load schedule data.</div>';
+        if (upcomingCards) {
+            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">Loading schedule...</div>';
+        }
         return;
     }
-    renderScheduleTable(filtered);
+    renderScheduleTable(scheduleEntries);
 }
 
 function formatDateShort(dateStr) {
@@ -422,10 +409,8 @@ function launchFromSchedule(rowIndex) {
     var dateVal = entry.schedule_date || new Date().toISOString().split("T")[0];
     var ownerName = currentUser.name && currentUser.name.trim() !== "" ? currentUser.name : (currentUser.email || "").split('@')[0];
     var nowISO = new Date().toISOString();
-    var parsedIn = time12to24(entry.start_time_edt || "");
-    var parsedOut = time12to24(entry.end_time_edt || "");
-    var tcInVal = parsedIn ? parsedIn + ":00" : "";
-    var tcOutVal = parsedOut ? parsedOut + ":00" : "";
+    var tcInVal = entry.start_time_ist ? entry.start_time_ist + ":00" : "";
+    var tcOutVal = entry.end_time_ist ? entry.end_time_ist + ":00" : "";
     var expectedDur = (tcInVal && tcOutVal) ? tcStr(Math.max(0, toSec(tcOutVal) - toSec(tcInVal))) : "00:30:00";
     var expectedSeg = (entry.segment_count && entry.segment_count !== "") ? parseInt(entry.segment_count) || 0 : 4;
 
@@ -474,57 +459,35 @@ function launchFromSchedule(rowIndex) {
 
         loadAllSegments().then(function() {
             showGlobalLoader(false);
-            // Fill expected duration and segments into editor metadata
-            var expDurEl = document.getElementById("metaExpDur");
-            if (expDurEl) expDurEl.value = expectedDur;
-            var expSegEl = document.getElementById("metaExpSeg");
-            if (expSegEl) expSegEl.value = expectedSeg;
-            loadToEditor(assetId);
-            showToast(assetId + " launched from schedule. Expected duration: " + expectedDur + ", Segments: " + expectedSeg + ".", "s");
+            loadToEditor(assetId).then(function(){
+                var expDurEl = document.getElementById("metaExpDur");
+                if (expDurEl) expDurEl.value = expectedDur;
+                var expSegEl = document.getElementById("metaExpSeg");
+                if (expSegEl) expSegEl.value = expectedSeg;
+                calcGrid();
+            });
+            showToast(assetId + " launched from schedule. Duration: " + expectedDur + ", Segments: " + expectedSeg + ".", "s");
         });
     });
 }
 
 function renderDashUpcoming() {
+    if (_dashUpcomingTimer) clearTimeout(_dashUpcomingTimer);
+    _dashUpcomingTimer = setTimeout(_renderDashUpcomingImpl, 200);
+}
+
+function _renderDashUpcomingImpl() {
     var upcomingSection = document.getElementById("dash-upcoming-events");
     var upcomingCards = document.getElementById("dash-upcoming-cards");
     if (!upcomingSection || !upcomingCards) return;
-    
+
     var userEmail = (currentUser && currentUser.email || "").toLowerCase();
-    var today = new Date();
-    var todayStr = today.getFullYear() + "-" + ("0"+(today.getMonth()+1)).slice(-2) + "-" + ("0"+today.getDate()).slice(-2);
-    
-    // Try DB first (other users may have synced)
-    scheduleDbRead(todayStr).then(function(dbRows) {
-        if (dbRows.length > 0) {
-            // Merge into cache
-            scheduleEntries = scheduleEntries.filter(function(e) { return e.schedule_date !== todayStr; });
-            dbRows.forEach(function(r) {
-                scheduleEntries.push({
-                    id: r.id, row_index: r.row_index, schedule_date: r.schedule_date, event_type: r.event_type,
-                    series_name: r.series_name || "", episode_title: r.episode_title, season_no: r.season_no,
-                    episode_no: r.episode_no, sheet_asset_id: r.sheet_asset_id || "",
-                    start_time_edt: r.start_time_edt, end_time_edt: r.end_time_edt,
-                    start_time_ist: r.start_time_ist || "", end_time_ist: r.end_time_ist || "",
-                    assigned_to: r.assigned_to || "", status: r.status || "pending", launched_asset_id: r.launched_asset_id || "",
-                    segment_count: r.segment_count || ""
-                });
-            });
-            renderDashUpcomingCards(dbRows, userEmail);
-        } else {
-            // Fallback to cache
-            var cached = scheduleEntries.filter(function(e) { return e.schedule_date === todayStr; });
-            if (cached.length > 0) {
-                renderDashUpcomingCards(cached, userEmail);
-            } else {
-                upcomingSection.style.display = "none";
-            }
-        }
-    }).catch(function() {
-        var cached = scheduleEntries.filter(function(e) { return e.schedule_date === todayStr; });
-        if (cached.length > 0) renderDashUpcomingCards(cached, userEmail);
-        else upcomingSection.style.display = "none";
-    });
+
+    if (scheduleEntries.length > 0) {
+        renderDashUpcomingCards(scheduleEntries, userEmail);
+    } else {
+        upcomingSection.style.display = "none";
+    }
 }
 
 function renderDashUpcomingCards(entries, userEmail) {
@@ -545,13 +508,20 @@ function renderDashUpcomingCards(entries, userEmail) {
             var cid3 = "cd-" + entry.row_index + "-" + entry.schedule_date + "-dash";
             html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2 min-w-0'>";
             html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + formatDateShort(entry.schedule_date) + "</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
-            html += "<div class='font-bold text-sm text-on-surface truncate'>" + escHtml(entry.episode_title) + "</div>";
+                        html += "<div class='font-bold text-sm text-on-surface'>" + escHtml(entry.episode_title) + "</div>";
             html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
+
+
             html += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
             html += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
-            html += "<div class='text-[10px] font-mono' id='" + cid3 + "'>" + getCountdownText(entry) + "</div>";
-            if (isAssignedToMe) {
+            var ct3 = getCountdownText(entry);
+            var ct3Display = ct3 === "ENDED" ? "ENDED" : (ct3 ? "upcoming in " + ct3 : "");
+            html += "<div class='text-[10px] font-mono' id='" + cid3 + "'>" + ct3Display + "</div>";
+            var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
+            if (isAssignedToMe && !assetExists) {
                 html += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
+            } else if (assetExists) {
+                html += "<button onclick=\"nav('editor'); loadToEditor('" + escHtml(entry.launched_asset_id) + "');\" class='btn-secondary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>open_in_new</span>Open</button>";
             } else if (entry.assigned_to) {
                 var aName = entry.assigned_to;
                 var aInfo = getUserInfo(entry.assigned_to);
@@ -586,7 +556,7 @@ function getCountdownText(entry) {
     var m = parseInt(parts[1]) || 0;
     var target = new Date(entry.schedule_date + "T" + ("0"+h).slice(-2) + ":" + ("0"+m).slice(-2) + ":00");
     var diff = target.getTime() - Date.now();
-    if (diff <= 0) return "LIVE";
+    if (diff <= 0) return "ENDED";
     var secs = Math.floor(diff / 1000);
     var hh = Math.floor(secs / 3600);
     var mm = Math.floor((secs % 3600) / 60);
@@ -615,18 +585,32 @@ function updateCountdowns() {
     var now = Date.now();
     var userEmail = (currentUser && currentUser.email || "").toLowerCase();
     scheduleEntries.forEach(function(entry) {
-        // Check 5-min warning for assigned entries
-        if (entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail && shouldWarn5min(entry)) {
-            sb.from("notifications").insert({
-                target_email: userEmail,
-                from_user: "System",
-                message: "Schedule alert: \"" + (entry.episode_title || entry.series_name || "Event") + "\" starts in 5 minutes!",
-                notification_type: "schedule_alert",
-                asset_id: entry.launched_asset_id || entry.sheet_asset_id || "",
-                read: false
-            }).then(function() {
-                showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes!", "w", 8000);
-            });
+        if (shouldWarn5min(entry)) {
+            var msg = "Schedule alert: \"" + (entry.episode_title || entry.series_name || "Event") + "\" starts in 5 minutes!";
+            var aid = entry.launched_asset_id || entry.sheet_asset_id || "";
+            if (entry.assigned_to) {
+                // Notify assigned user
+                sb.from("notifications").insert({
+                    target_email: entry.assigned_to.toLowerCase(),
+                    from_user: "System", message: msg,
+                    notification_type: "schedule_alert", asset_id: aid, read: false
+                });
+                if (entry.assigned_to.toLowerCase() === userEmail) {
+                    showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes!", "w", 8000);
+                }
+            } else {
+                // Notify all users
+                for (var _k in userProfiles) {
+                    var _p = userProfiles[_k];
+                    var _em = _p.email || _k;
+                    sb.from("notifications").insert({
+                        target_email: _em.toLowerCase(),
+                        from_user: "System", message: msg,
+                        notification_type: "schedule_alert", asset_id: aid, read: false
+                    });
+                }
+                showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes! (notifying all users)", "w", 8000);
+            }
         }
         // Update countdown spans (schedule + dashboard)
         var ids = ["cd-" + entry.row_index + "-" + entry.schedule_date, "cd-" + entry.row_index + "-" + entry.schedule_date + "-dash"];
@@ -637,11 +621,11 @@ function updateCountdowns() {
                 if (entry.launched_asset_id && globalSegments[entry.launched_asset_id]) {
                     el.textContent = "Launched";
                     el.className = "text-[10px] text-success font-bold";
-                } else if (text === "LIVE") {
-                    el.textContent = "LIVE";
-                    el.className = "text-[10px] text-error font-bold animate-pulse";
+                } else if (text === "ENDED") {
+                    el.textContent = "ENDED";
+                    el.className = "text-[10px] text-secondary";
                 } else if (text) {
-                    el.textContent = "in " + text;
+                    el.textContent = "upcoming in " + text;
                     el.className = "text-[10px] text-primary font-mono";
                 } else {
                     el.textContent = "";
@@ -682,11 +666,13 @@ function renderScheduleTable(entries) {
         html += "<tr class='hover:bg-sclo smooth border-b border-ov/20'>";
         html += "<td class='p-3 pl-4 text-secondary font-mono text-xs'>" + (idx + 1) + "</td>";
         html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(entry.schedule_date) + "</td>";
-        html += "<td class='p-3 text-on-surface max-w-[200px] truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</td>";
+        html += "<td class='p-3 text-on-surface'>" + escHtml(entry.episode_title) + "</td>";
         html += "<td class='p-3 text-secondary font-mono text-xs'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</td>";
         html += "<td class='p-3 text-secondary font-mono text-xs'>S" + escHtml(entry.season_no) + "/E" + escHtml(entry.episode_no) + "</td>";
         html += "<td class='p-3 text-center font-mono text-xs text-secondary'>" + (entry.segment_count || "—") + "</td>";
-        html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + "<br><span id='" + cid + "' class='text-[10px] text-primary font-mono'>" + getCountdownText(entry) + "</span></td>";
+        var ct = getCountdownText(entry);
+        var ctDisplay = ct === "ENDED" ? "ENDED" : (ct ? "upcoming in " + ct : "");
+html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + "<br><span id='" + cid + "' class='text-[10px] text-primary font-mono'>" + ctDisplay + "</span></td>";
         var ti2 = getTypeInfo(entry.event_type);
         html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
         html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
@@ -724,15 +710,14 @@ function renderScheduleTable(entries) {
     });
     tbody.innerHTML = html;
     
-    // Upcoming cards for assigned to current user
+    // Upcoming cards — show all entries from cache
     if (upcomingCards) {
-        var myUpcoming = scheduleEntries.filter(function(e) {
-            var eAssetExists = e.launched_asset_id ? !!globalSegments[e.launched_asset_id] : false;
-            return !eAssetExists && e.assigned_to && e.assigned_to.toLowerCase() === userEmail;
-        });
-        if (myUpcoming.length > 0) {
+        if (scheduleEntries.length > 0) {
             var cardsHtml = "";
-            myUpcoming.forEach(function(entry) {
+            scheduleEntries.forEach(function(entry) {
+                var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
+                var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
+                var canLaunch = isAssignedToMe && !assetExists;
                 var cid2 = "cd-" + entry.row_index + "-" + entry.schedule_date;
                 cardsHtml += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
                 var ti = getTypeInfo(entry.event_type);
@@ -741,13 +726,26 @@ function renderScheduleTable(entries) {
                 cardsHtml += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + "</div>";
                 cardsHtml += "<div class='text-xs font-mono text-secondary'>" + (entry.sheet_asset_id ? escHtml(entry.sheet_asset_id) : "—") + "</div>";
                 cardsHtml += "<div class='text-xs font-mono text-on-surface'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</div>";
-                cardsHtml += "<div class='text-[10px] font-mono text-primary' id='" + cid2 + "'>" + getCountdownText(entry) + "</div>";
-                cardsHtml += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
+                var ct2 = getCountdownText(entry);
+                var ct2Display = ct2 === "ENDED" ? "ENDED" : (ct2 ? "upcoming in " + ct2 : "");
+                cardsHtml += "<div class='text-[10px] font-mono' id='" + cid2 + "'>" + ct2Display + "</div>";
+                if (canLaunch) {
+                    cardsHtml += "<button onclick='launchFromSchedule(" + entry.row_index + ")' class='btn-primary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>rocket_launch</span>Launch</button>";
+                } else if (assetExists) {
+                    cardsHtml += "<button onclick=\"nav('editor'); loadToEditor('" + escHtml(entry.launched_asset_id) + "');\" class='btn-secondary text-xs px-3 py-1.5 mt-1 ripple-host flex items-center gap-1 justify-center'><span class='ms text-[14px]'>open_in_new</span>Open</button>";
+                } else if (entry.assigned_to) {
+                    var assignedName = entry.assigned_to;
+                    var assignedInfo = getUserInfo(entry.assigned_to);
+                    if (assignedInfo && assignedInfo.name) assignedName = assignedInfo.name;
+                    cardsHtml += "<div class='text-xs text-secondary mt-1 text-center'>Assigned to " + escHtml(assignedName) + "</div>";
+                } else {
+                    cardsHtml += "<div class='text-xs text-secondary mt-1 text-center italic'>Unassigned</div>";
+                }
                 cardsHtml += "</div>";
             });
             upcomingCards.innerHTML = cardsHtml;
         } else {
-            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No upcoming events assigned to you.</div>';
+            upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No schedule entries yet. Sync from sheet to load data.</div>';
         }
     }
 }

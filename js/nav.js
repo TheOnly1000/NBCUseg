@@ -4,7 +4,7 @@ function refreshCurrentView() {
     if (on) {
         var id2 = on.id.replace("vp-", "");
         if (id2 === "dashboard") renderDash();
-        else if (id2 === "schedule") { renderSchedule(); loadScheduleFromDb().then(function(){renderSchedule()}) }
+        else if (id2 === "schedule") { renderSchedule(); loadScheduleFromDb(true) }
         else if (id2 === "assets") renderAssets();
         else if (id2 === "report" && currentFullscreenAssetId) nav("report");
         else if (id2 === "manual") renderManual();
@@ -342,7 +342,7 @@ function nav(viewId) {
         }
     }
     if (viewId === "schedule") {
-        renderSchedule();
+        loadScheduleFromDb(true);
     }
     if (viewId === "manual") {
         renderManual();

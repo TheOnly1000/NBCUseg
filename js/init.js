@@ -37,17 +37,7 @@ async function initApp() {
             loadThumbnails();
             fetchNotifications();
             loadUserProfiles();
-            loadScheduleFromDb().then(function() {
-                // Poll schedule every 15s for cross-user sync
-                if (schedulePollTimer) clearInterval(schedulePollTimer);
-                schedulePollTimer = setInterval(function() {
-                    loadScheduleFromDb().then(function() {
-                        var on = document.querySelector(".vp.on");
-                        if (on && on.id === "vp-schedule") renderSchedule();
-                        else if (on && on.id === "vp-dashboard") renderDash();
-                    });
-                }, 15000);
-            });
+            loadScheduleFromDb(true);
             subscribeRealTime();
         } else {
             nav("login");

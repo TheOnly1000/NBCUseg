@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Verified – Segmentor</title>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --c-surface: #f8fafc; --c-scl: #ffffff; --c-sclo: #f1f5f9; --c-sc: #e2e8f0; --c-sch: #cbd5e1;
+      --c-on-surface: #0f172a; --c-osv: #475569; --c-outline: #94a3b8; --c-ov: #cbd5e1;
+      --c-primary: #003ec7; --c-op: #ffffff; --c-pc: #0047e5; --c-opc: #eff6ff;
+      --c-pf: #dbeafe; --c-opf: #1e3a8a; --c-secondary: #64748b; --c-error: #dc2626;
+      --c-ec: #fee2e2; --c-oec: #991b1b; --c-bg: #f8fafc;
+      --c-panel-bg: #f1f5f9; --c-card-bg: #ffffff; --c-hover-bg: #f1f5f9;
+      --c-input-bg: #ffffff; --c-input-border: #e2e8f0; --c-input-focus-ring: rgba(0,62,199,0.15);
+      --c-primary-grad: #002699;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    .ms{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;user-select:none;font-family:'Material Symbols Outlined'}
+    body {
+      height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: var(--c-bg); font-family: 'Hanken Grotesk', sans-serif;
+      padding: 16px;
+    }
+    .card {
+      width: 100%; max-width: 380px;
+      background: var(--c-scl);
+      border: 1px solid var(--c-ov);
+      border-radius: 24px;
+      padding: 36px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .accent {
+      position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+      background: linear-gradient(90deg, var(--c-primary), #7c3aed);
+    }
+    .logo { height: 40px; width: auto; margin-bottom: 20px; object-fit: contain; }
+    .icon {
+      width: 56px; height: 56px; border-radius: 16px;
+      background: linear-gradient(135deg, var(--c-primary), #7c3aed);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .icon .ms { color: #fff; font-size: 28px; }
+    h1 {
+      font-size: 22px; font-weight: 900; color: var(--c-on-surface);
+      letter-spacing: -0.5px; margin-bottom: 8px;
+    }
+    p {
+      font-size: 13.5px; color: var(--c-secondary);
+      line-height: 1.5; margin-bottom: 28px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, var(--c-primary), var(--c-primary-grad));
+      color: #fff; font-weight: 700; font-size: 14px;
+      border-radius: 12px; text-decoration: none; border: none; cursor: pointer;
+      transition: opacity .2s, transform .15s;
+    }
+    .btn:hover { opacity: .9; transform: translateY(-1px); }
+    .btn .ms { font-size: 18px; }
+  </style>
+</head>
+<body>
+  <div id="page" class="card" style="display:none">
+    <div class="accent"></div>
+    <div class="icon"><span class="ms">check</span></div>
+    <img src="https://logosandtypes.com/wp-content/uploads/2020/08/Telemundo.png" alt="Telemundo" class="logo">
+    <h1>Email Verified</h1>
+    <p>Your email has been confirmed successfully.<br>You can now sign in to Segmentor.</p>
+    <a href="/" class="btn"><span class="ms">login</span> Go to Sign In</a>
+  </div>
+  <script src="https://unpkg.com/@supabase/supabase-js@2.49.4/umd/supabase.min.js"></script>
+  <script>
+    var _sb = window.supabase.createClient("https://fzbktwyurskhvtwkklzu.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDIwODEsImV4cCI6MjA5Nzg3ODA4MX0.MEZzsQ7BHs_Jh2wozEkJVml43T599w0PkG9GH8aAyUM");
+    _sb.auth.getSession().then(function(r) {
+      if (r.data && r.data.session) {
+        window.location.href = "/";
+      } else {
+        document.getElementById("page").style.display = "";
+      }
+    });
+  </script>
+</body>
+</html>
