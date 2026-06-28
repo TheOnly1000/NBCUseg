@@ -54,6 +54,15 @@ async function handleUserLogin(event) {
         return;
     }
     
+    var { data: banCheck } = await sb.from("profiles").select("banned").eq("id", data.user.id).maybeSingle();
+    if (banCheck?.banned) {
+        await sb.auth.signOut();
+        if(loginBtn) { loginBtn.textContent = "Sign In"; loginBtn.disabled = false; }
+        finishProgressBar();
+        window.location.href = "ban.html";
+        return;
+    }
+    
     currentUser = { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name || emailInput.split('@')[0], avatar: data.user.user_metadata?.avatar || "" };
     updateSidebarProfile(); 
     finishProgressBar();

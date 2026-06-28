@@ -27,6 +27,12 @@ async function initApp() {
         var session = sessionRes.data ? sessionRes.data.session : null;
         if (session) {
             currentUser = { id: session.user.id, email: session.user.email, name: session.user.user_metadata?.name || session.user.email.split('@')[0], avatar: session.user.user_metadata?.avatar || "" };
+            var { data: banCheck } = await sb.from("profiles").select("banned").eq("id", session.user.id).maybeSingle();
+            if (banCheck?.banned) {
+                await sb.auth.signOut();
+                window.location.href = "ban.html";
+                return;
+            }
             updateSidebarProfile();
             var themeMsg = document.getElementById("theme-username");
             if (themeMsg) themeMsg.textContent = currentUser.name;
@@ -42,6 +48,17 @@ async function initApp() {
         } else {
             nav("login");
         }
+
+        sb.auth.onAuthStateChange(function(event, session) {
+            if (event === "SIGNED_OUT") {
+                if (segChannel) sb.removeChannel(segChannel);
+                if (notifChannel) sb.removeChannel(notifChannel);
+                if (profilesChannel) sb.removeChannel(profilesChannel);
+                if (scheduleChannel) sb.removeChannel(scheduleChannel);
+                if (schedulePollTimer) { clearInterval(schedulePollTimer); schedulePollTimer = null; }
+                nav("login");
+            }
+        });
         
         var boot = document.getElementById("boot-loader");
         if(boot) boot.style.opacity = "0";

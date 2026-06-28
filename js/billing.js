@@ -296,36 +296,6 @@ function exportBilling(){
 
 // --- BANNED USER SCREEN ---
 function showBannedScreen() {
-  var existing = document.getElementById("banned-overlay");
-  if (existing) return;
-  var overlay = document.createElement("div");
-  overlay.id = "banned-overlay";
-  overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)";
-  var card = document.createElement("div");
-  card.style.cssText = "background:var(--c-card);border:1px solid var(--c-ov);border-radius:20px;padding:40px;max-width:440px;width:90%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.4)";
-  card.innerHTML = '<span class="ms" style="font-size:64px;color:var(--c-error);display:block;margin-bottom:16px">block</span><h2 style="font-size:22px;font-weight:800;margin:0 0 8px;color:var(--c-on-surface)">Account Blocked</h2><p style="font-size:14px;color:var(--c-secondary);margin:0 0 20px;line-height:1.6">You are currently on hold.<br>Contact an administrator to resolve this issue.</p><div id="banned-admin-emails" style="margin-bottom:16px;text-align:left;font-size:13px;color:var(--c-secondary)"><em>Loading admin contacts...</em></div><button onclick="contactAdmin()" class="btn-primary" style="padding:12px 28px;border-radius:12px;font-weight:700;font-size:15px;display:inline-flex;align-items:center;gap:8px"><span class="ms" style="font-size:20px">mail</span> Contact Admin</button>';
-  overlay.appendChild(card);
-  document.body.appendChild(overlay);
-  // Fetch admin emails
-  sb.from("profiles").select("name,email").eq("role","admin").then(function(r){
-    var el = document.getElementById("banned-admin-emails");
-    if (r.data && r.data.length) {
-      var list = r.data.map(function(a){ return '<div style="padding:4px 0;display:flex;align-items:center;gap:8px"><span class="ms" style="font-size:16px;color:var(--c-primary)">person</span><span><strong>' + (a.name || a.email) + '</strong> — ' + a.email + '</span></div>' }).join('');
-      el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--c-secondary);margin-bottom:6px">ADMINISTRATORS</div>' + list;
-    } else {
-      el.innerHTML = '<div style="font-size:12px;color:var(--c-secondary)">No admin contacts available. Please try again later.</div>';
-    }
-  });
-}
-function contactAdmin() {
-  sb.from("profiles").select("email").eq("role","admin").then(function(r){
-    if (r.data && r.data.length) {
-      var emails = r.data.map(function(a){ return a.email }).join(",");
-      var sub = encodeURIComponent("Account Blocked - Access Required");
-      var body = encodeURIComponent("Hello,\n\nMy account has been blocked and I need assistance to regain access.\n\nMy email: " + (currentUser?.email || "unknown") + "\n\nPlease help resolve this issue.\n\nThank you.");
-      window.location.href = "mailto:" + emails + "?subject=" + sub + "&body=" + body;
-    } else {
-      showToast("No admin contact available","w");
-    }
-  });
+  if (window.location.href.indexOf("ban.html") >= 0) return;
+  window.location.href = "ban.html";
 }
