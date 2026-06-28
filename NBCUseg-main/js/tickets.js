@@ -463,6 +463,10 @@ async function deleteTicket(ticketId){
 async function raiseTicketNotif(ticketId){
   var ticket=ticketsCache.find(function(t){return String(t.id)===String(ticketId)});
   if(!ticket){showToast("Ticket not found","w");return}
+  var {error:updErr}=await sb.from("tickets").update({priority:"high"}).eq("id",ticket.id);
+  if(updErr){showToast("Failed to raise priority","e");return}
+  ticket.priority="high";
+  renderTicketsView();
   var targets=[];
   if(ticket.target_email){
     targets.push(ticket.target_email)
@@ -472,7 +476,7 @@ async function raiseTicketNotif(ticketId){
       if(userProfiles[ek].email!==(currentUser.email||""))targets.push(userProfiles[ek].email)
     }
   }
-  var tag = ticket.priority === "high" ? " [HIGH]" : "";
+  var tag = " [HIGH]";
   targets.forEach(function(em){
     sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject+tag,notification_type:"ticket",ticket_id:ticket.id,read:false}).then(function(r){if(r&&r.error)console.warn("Raise notif insert error:",r.error)})
   });
