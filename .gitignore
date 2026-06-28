@@ -1,4 +1,5 @@
 node_modules/
+.env
 Thumbnails/
 add_banned_column.js
 fix_storage_rls.js
