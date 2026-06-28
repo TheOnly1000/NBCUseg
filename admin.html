@@ -263,14 +263,23 @@ async function unbanUser(uid, email, name) {
 }
 
 async function removeUser(uid, email, name) {
-  if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile and they will lose access.")) return;
+  if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile, comments, and auth account.")) return;
   if (!confirm("Are you sure? This cannot be undone.")) return;
+  // Clean up user's data
+  sb.from("ticket_comments").delete().eq("user_email", email).then(function(){});
+  sb.from("notifications").delete().eq("target_email", email).then(function(){});
+  sb.from("notification_reads").delete().eq("user_email", email).then(function(){});
+  sb.from("comment_views").delete().eq("user_email", email).then(function(){});
+  sb.from("ticket_views").delete().eq("user_email", email).then(function(){});
+  // Delete profile
   var { error } = await sb.from("profiles").delete().eq("id", uid);
-  if (error) { st("Error removing user: " + error.message, "e"); return; }
-  st("Removed " + (name || email), "s");
+  if (error) { st("Error removing profile: " + error.message, "e"); return; }
+  // Delete from auth.users via RPC
+  try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e) { /* auth delete best-effort */ }
+  st("Removed " + (name || email) + " and all associated data", "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_removed", asset_id: "",
-    details: "Removed user " + (name || email)
+    details: "Removed user " + (name || email) + " and all associated data"
   });
   loadUsers();
 }

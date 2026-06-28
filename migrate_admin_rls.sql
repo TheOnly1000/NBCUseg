@@ -35,3 +35,20 @@ CREATE POLICY "admin_insert_thumbnails" ON storage.objects
 DROP POLICY IF EXISTS "admin_update_thumbnails" ON storage.objects;
 CREATE POLICY "admin_update_thumbnails" ON storage.objects
   FOR UPDATE USING (bucket_id = 'thumbnails');
+
+-- 7. storage.objects (thumbnails bucket): admins can DELETE (thumbnail cleanup on asset delete)
+DROP POLICY IF EXISTS "admin_delete_thumbnails" ON storage.objects;
+CREATE POLICY "admin_delete_thumbnails" ON storage.objects
+  FOR DELETE USING (bucket_id = 'thumbnails');
+
+-- 8. SECURITY DEFINER function to delete a user from auth.users (bypasses RLS)
+CREATE OR REPLACE FUNCTION public.admin_delete_user(uid uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  DELETE FROM auth.users WHERE id = uid;
+END;
+$$;

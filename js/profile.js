@@ -150,13 +150,21 @@ function getUserAvatarHtml(email, name, size) {
     return '<div class=\"rounded-full bg-pf text-primary flex items-center justify-center font-bold flex-shrink-0 border border-primary/20\" style=\"width:'+size+'px;height:'+size+'px;font-size:'+Math.round(size*0.45)+'px;line-height:1\">'+initial+'</div>';
 }
 
-function deleteUserAccount() {
+async function deleteUserAccount() {
     showGlobalLoader(true);
-    sb.from("segments").delete().eq("created_by", currentUser.name).then(function() {
-        sb.from("profiles").delete().eq("id", currentUser.id).then(function() {
-            showGlobalLoader(false);
-            showToast("Account data cleared. Signing out...", "s", 3000);
-            setTimeout(function() { processLogout(); }, 2000);
-        });
-    });
+    var email = currentUser.email || "";
+    var uid = currentUser.id;
+    // Clean up user's data (keep segments, assets, tickets, schedule)
+    await sb.from("ticket_comments").delete().eq("user_email", email);
+    await sb.from("notifications").delete().eq("target_email", email);
+    await sb.from("notification_reads").delete().eq("user_email", email);
+    await sb.from("comment_views").delete().eq("user_email", email);
+    await sb.from("ticket_views").delete().eq("user_email", email);
+    // Delete profile
+    await sb.from("profiles").delete().eq("id", uid);
+    // Delete from auth.users via RPC
+    try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e) { /* best-effort */ }
+    showGlobalLoader(false);
+    showToast("Account deleted. Signing out...", "s", 3000);
+    setTimeout(function() { processLogout(); }, 2000);
 }

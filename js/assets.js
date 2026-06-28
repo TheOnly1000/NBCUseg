@@ -192,6 +192,7 @@ async function loadThumbnails() {
             });
             if (changed) saveThumbnailCache();
         }
+        refreshCurrentView();
     } catch(e) { console.warn("loadThumbnails error:", e); }
 }
 
@@ -554,7 +555,10 @@ function performDeleteAsset(aid) {
                             return a.title && a.title.toLowerCase() === key;
                         });
                         if (!otherWithSameTitle && thumbnailCache[key]) {
+                            var thumbUrl = thumbnailCache[key];
+                            var thumbFile = decodeURIComponent(thumbUrl.split("/").pop());
                             sb.from("asset_thumbnails").delete().eq("title", assetTitle).then(function() {});
+                            sb.storage.from("thumbnails").remove([thumbFile]).then(function() {});
                             delete thumbnailCache[key];
                         }
                     }

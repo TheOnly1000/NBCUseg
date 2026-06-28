@@ -38,9 +38,9 @@ async function initApp() {
             if (themeMsg) themeMsg.textContent = currentUser.name;
             var lastView = "dashboard";
             try { var saved = localStorage.getItem('seg_last_view'); if (saved) lastView = saved; } catch(e) {}
+            loadThumbnails();
             nav(lastView);
             loadAllSegments();
-            loadThumbnails();
             fetchNotifications();
             loadUserProfiles();
             loadScheduleFromDb(true);
