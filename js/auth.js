@@ -24,7 +24,7 @@ function handleForgotPassword() {
     if (!email) { showToast("Enter your email address first.", "w"); return; }
     sb.auth.resetPasswordForEmail(email).then(function(r) {
         if (r.error) {
-            showToast("Failed: " + r.error.message, "e");
+            console.error("Password reset error:", r.error.message); showToast("Failed to send reset email. Try again.", "e");
         } else {
             showToast("Password reset link sent to " + email, "s", 8000);
         }
@@ -47,7 +47,7 @@ async function handleUserLogin(event) {
         if (error.message && error.message.toLowerCase().indexOf("email not confirmed") >= 0) {
             showToast("Email not confirmed yet. Check your inbox for the confirmation link.", "w", 8000);
         } else {
-            showToast("Login failed: " + error.message, "e");
+            console.error("Login error:", error.message); showToast("Login failed. Check your credentials.", "e");
         }
         if(loginBtn) { loginBtn.textContent = "Sign In"; loginBtn.disabled = false; }
         finishProgressBar();
@@ -100,14 +100,14 @@ async function handleUserSignup(event) {
     const signupBtn = document.getElementById("s-btn");
     const nameInput = document.getElementById("s-nm")?.value.trim();
     
-    if (!emailInput || !passwordInput || passwordInput.length < 6) { showToast("Password must be at least 6 characters.", "w"); return; }
+    if (!emailInput || !passwordInput || passwordInput.length < 8) { showToast("Password must be at least 8 characters.", "w"); return; }
     if(signupBtn) { signupBtn.textContent = "Requesting…"; signupBtn.disabled = true; }
     startProgressBar();
     
     var { data, error } = await sb.auth.signUp({
         email: emailInput,
         password: passwordInput,
-        options: { data: { name: nameInput || emailInput.split('@')[0] }, emailRedirectTo: "https://theonly1000.github.io/NBCUseg/verified.html" }
+        options: { data: { name: nameInput || emailInput.split('@')[0] }, emailRedirectTo: window.location.origin + "/verified.html" }
     });
     
     if (error) {

@@ -103,7 +103,7 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--c-bg);
 .vp.on{display:block!important;z-index:5}
 .vp.enter{animation:fadeUp .32s cubic-bezier(.16,1,.3,1) both}
 
-#bnav{display:none;flex-shrink:0;height:56px;background:var(--c-scl);border-top:1px solid var(--c-ov);z-index:200}
+#bnav{display:none;flex-shrink:0;height:56px;background:var(--c-scl);border-top:1px solid var(--c-ov);z-index:200;position:relative;padding-bottom:env(safe-area-inset-bottom,0)}
 @media(max-width:767px){#bnav{display:flex}}
 .bn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;font-weight:700;color:var(--c-secondary);cursor:pointer;background:none;border:none;transition:color .2s;position:relative}
 .bn.on{color:var(--c-primary)}
@@ -206,4 +206,149 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 .sk-btn{height:36px;width:100px;border-radius:12px;flex-shrink:0}
 .sk-widget{height:80px;border-radius:20px}
 .sk-overlay{position:absolute;inset:0;z-index:20;background:var(--c-bg,#f8fafc);overflow:hidden}
+
+/* ===== MOBILE-FRIENDLY OVERRIDES ===== */
+/* 1. Touch-friendly tap targets */
+@media(max-width:767px){
+  .nav-btn,.bn,.btn-primary,.btn-secondary,.tab-btn,.ctx-item,
+  #hdr button,.mw button,.logout-btn,.search-result{min-height:44px;display:inline-flex;align-items:center}
+
+  /* 2. Header: hide clocks (already hidden), shortcuts, theme; compact search */
+  #hdr button[title="Shortcuts"],#hdr button[title="Theme"]{display:none!important}
+  #hdr button[onclick*="m-search"]{width:40px;padding:0 10px;flex-shrink:0}
+  #hdr button[onclick*="m-search"] span:not(.ms),
+  #hdr button[onclick*="m-search"] kbd{display:none}
+  #hdr{gap:6px;padding:0 10px}
+  #hdr .hbg{width:36px;height:36px}
+
+  /* 3. Full-width modals */
+  .mw .mb{max-width:calc(100% - 16px)!important;max-height:85vh;overflow-y:auto;padding:18px}
+  .mw .mb .max-w-sm,.mw .mb .max-w-md,.mw .mb .max-w-lg{max-width:100%!important}
+
+  /* 4. Tables: compact cells for mobile scroll */
+  .ts table th,.ts table td{padding:5px 4px!important;white-space:nowrap;font-size:11.5px}
+  .ts table th .ms,.ts table td .ms{font-size:12px!important}
+
+  /* 5a. No hover on touch: show group-hover elements always on mobile */
+  .asset-row .group-hover\\:opacity-100,
+  .segment-row .group-hover\\:opacity-100{opacity:1!important}
+  .ac:hover{transform:translateY(-2px)}
+
+  /* 5b. Dashboard: compact grid + widgets */
+  .lg-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem}
+  .ac .ct{height:80px}
+  .ac .cb{padding:7px 10px}
+  .ac .cb h3{font-size:12px}
+  .ac .cb .text-\\[12px\\]{font-size:10px}
+  #dash-widgets{grid-template-columns:repeat(2,1fr);gap:.4rem}
+  #dash-widgets .card{padding:10px}
+  #dash-widgets .card .w-10{width:28px;height:28px}
+  #dash-widgets .card .w-10 .ms{font-size:14px}
+  #dash-widgets .card .font-black{font-size:14px}
+  #dash-widgets .card .text-\\[10px\\]{font-size:8px}
+  .vp h1{font-size:20px!important}
+  .vp>.p-5{padding:10px}
+  #vp-dashboard>.p-5{padding:10px}
+
+  /* 6. FSO: smaller header */
+  #fsh{height:120px!important}
+  #fsh h1{font-size:16px!important}
+  #fsh .p-6{padding:10px}
+  #fsh button.absolute.top-4{top:8px}
+  #fsh button.absolute.top-4.left-4{left:8px;width:36px;height:36px}
+  #fsh button.absolute.top-4.right-4{right:8px;padding:4px 10px;font-size:10px}
+  #fsb{padding:12px}
+  #fsb>.p-6{padding:12px}
+  #fs-comments-section{padding:12px}
+
+  /* 7. Editor: compact metadata grid */
+  #editor-main{padding:10px}
+  #editorTable input.gi,#editorTable select.gi{min-height:36px;padding:4px 3px}
+  #editor-main .grid-cols-2.sm\\:grid-cols-3.lg\\:grid-cols-6,
+  #editor-main .grid-cols-2.sm\\:grid-cols-3.lg\\:grid-cols-5{gap:8px}
+  #editor-main .card .p-6{padding:10px}
+  #editor-main .card .px-6{padding-left:10px;padding-right:10px}
+  #editor-main .card .py-5{padding-top:8px;padding-bottom:8px}
+  #editor-main .lbl{font-size:9px}
+  #editor-main input.inp,#editor-main select.sel{font-size:12px;padding:6px 8px}
+  #countdown-section .gap-4{gap:8px}
+  #countdown-section .px-4{padding:4px 8px}
+  #countdown-display{font-size:16px!important}
+  .card .p-5,.card .p-6{padding:10px}
+  .card .px-6{padding-left:10px;padding-right:10px}
+  .card .py-5{padding-top:8px;padding-bottom:8px}
+  #metaExpDur{font-size:11px!important}
+
+  /* 8. Upcoming / Live Now cards: single column */
+  #dash-upcoming-cards,#schedule-upcoming-cards,#dash-live-now-cards{grid-template-columns:1fr}
+
+  /* 9. Bottom padding so content isn't hidden behind bottom nav */
+  .vp>.p-5,.vp>.p-5\\.lg\\:p-8{padding-bottom:70px}
+
+  /* 10. Sidebar: take full width when open */
+  #sidebar.open{width:100%!important}
+
+  /* 11. Search modal filters: stack */
+  #m-search .flex.gap-2.px-4.py-2{gap:4px}
+  #m-search .sel.py-1{width:calc(50% - 4px);font-size:10px}
+  #m-search input[type="date"]{width:calc(50% - 4px);font-size:10px}
+
+  /* 12. Schedule: compact upcoming cards */
+  #schedule-upcoming-section .gap-4{gap:8px}
+
+  /* 13. What's new: compact */
+  #whatsnew-overlay .max-w-lg{margin:0 8px}
+  #whatsnew-overlay .px-6{padding-left:12px;padding-right:12px}
+  #whatsnew-overlay .pt-6{padding-top:12px}
+  #wn-dialog .w-14{width:36px;height:36px}
+  #wn-dialog .w-14 .ms{font-size:20px!important}
+  #wn-dialog h2{font-size:16px!important}
+
+  /* 14. Notification modal: scroll */
+  #m-notif .mb{max-height:85vh}
+
+  /* 15. New ticket modal: compact */
+  #m-new-ticket .mb{padding:14px}
+
+  /* 16. Keyboard shortcuts: single column */
+  #m-shortcuts .grid-cols-2{grid-template-columns:1fr;gap:2px}
+
+  /* 17. Handover modals: compact */
+  #m-handover .mb,#m-request-ho .mb{padding:16px}
+
+  /* 18. Confirm dialog: smaller */
+  #m-confirm .mb{padding:16px}
+  #m-confirm .w-14{width:40px;height:40px}
+  #m-confirm .w-14 .ms{font-size:20px!important}
+
+  /* 19. Live Now section: compact */
+  #dash-live-now .card .p-4{padding:10px}
+
+  /* 20. Recent activity: tighter */
+  #dash-recent-activity .px-4{padding-left:8px;padding-right:8px}
+  #dash-activity-list .px-4{padding-left:8px;padding-right:8px}
+
+  /* 21. Welcome overlay: full-width */
+  #welcome-overlay .max-w-md{margin:0 16px}
+  #welcome-content .pb-16{padding-bottom:48px}
+  #welcome-content .pt-12{padding-top:32px}
+
+  /* 22. Profile modal: compact */
+  #m-profile .mb{padding:16px}
+
+  /* 23. User detail modal: compact */
+  #m-user-detail .mb{padding:16px}
+  #m-user-detail .w-20{width:60px;height:60px}
+  #m-user-detail .w-20 .text-\\[28px\\]{font-size:20px}
+}
+
+/* Very small phones (<400px) - even more compact */
+@media(max-width:400px){
+  .lg-grid{grid-template-columns:1fr}
+  #dash-widgets{grid-template-columns:repeat(2,1fr);gap:.3rem}
+  #dash-widgets .card .font-black{font-size:13px}
+  .ts table th,.ts table td{padding:4px 3px!important;font-size:10.5px}
+  .ac .ct{height:65px}
+  #hdr button[onclick*="m-search"]{width:36px}
+}
 

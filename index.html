@@ -1,8 +1,9 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="touch-action:manipulation">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://docs.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.tvmaze.com https://en.wikipedia.org https://api.duckduckgo.com https://api.qrserver.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'; worker-src 'self'">
 <title>Telemundo Segmentor &mdash; Enterprise</title>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -464,8 +465,8 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
       <header id="hdr" class="justify-between">
         <div class="flex items-center gap-4">
             <button class="hbg w-10 h-10 rounded-xl hover:bg-sc flex items-center justify-center sm text-secondary" onclick="toggleSidebarDesktop()" title="Toggle sidebar"><span class="ms text-[22px]" id="hamburger-icon">menu</span></button>
-            <button onclick="openModal('m-search');setTimeout(()=>document.getElementById('qsearch').focus(),80)" class="flex items-center gap-2 w-[260px] lg:w-[360px] h-10 px-4 text-sm text-secondary bg-sc rounded-full sm hover:bg-scl border border-ov/50">
-              <span class="ms text-[18px]">search</span><span class="flex-1 text-left">Search assets&hellip;</span>
+            <button onclick="openModal('m-search');setTimeout(()=>document.getElementById('qsearch').focus(),80)" class="flex items-center gap-2 w-10 sm:w-[260px] lg:w-[360px] h-10 px-2 sm:px-4 text-sm text-secondary bg-sc rounded-full hover:bg-scl border border-ov/50" title="Search">
+              <span class="ms text-[18px] flex-shrink-0">search</span><span class="flex-1 text-left hidden sm:inline">Search assets&hellip;</span>
               <kbd class="text-[10px] font-bold px-2 py-0.5 rounded border border-ov/40 font-mono bg-scl hidden sm:block shadow-sm">Ctrl K</kbd>
             </button>
         </div>

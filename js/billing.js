@@ -4,7 +4,17 @@
 
 // --- ROLE UI ---
 function canEdit(){var r=currentUser?.role;return !r||r==="editor"||r==="admin"}
-function requireEdit(){if(!canEdit()){showToast("Viewers cannot modify content","w");return false}return true}
+async function requireEdit(){
+  if(!canEdit()){showToast("Viewers cannot modify content","w");return false}
+  try {
+    var {data} = await sb.from("profiles").select("role").eq("id", currentUser?.id).maybeSingle();
+    if (!data || (data.role !== "editor" && data.role !== "admin")) {
+      currentUser.role = "viewer"; updateRoleUI();
+      showToast("Viewers cannot modify content","w"); return false;
+    }
+    return true;
+  } catch(e) { return false; }
+}
 function updateRoleUI(){
   var r=currentUser?.role||"viewer";
   var el=document.getElementById("role-badge-header");
@@ -21,9 +31,9 @@ function updateRoleUI(){
 }
 
 // Patch saveToSheets, createNewAsset, deleteAsset to enforce roles
-var _origSave=saveToSheets;saveToSheets=function(){if(!requireEdit())return;_origSave()};
-var _origCreate=createNewAsset;createNewAsset=async function(){if(!requireEdit())return;await _origCreate()};
-var _origDelete=deleteAsset;deleteAsset=function(){if(!requireEdit())return;_origDelete()};
+var _origSave=saveToSheets;saveToSheets=async function(){if(!await requireEdit())return;await _origSave()};
+var _origCreate=createNewAsset;createNewAsset=async function(){if(!await requireEdit())return;await _origCreate()};
+var _origDelete=deleteAsset;deleteAsset=async function(){if(!await requireEdit())return;await _origDelete()};
 // Hide new-asset button from viewers
 document.addEventListener("DOMContentLoaded",function(){if(!canEdit())document.querySelectorAll("[onclick*='openNewAsset']").forEach(function(b){b.style.display="none"})});
 
@@ -136,8 +146,8 @@ function updateBatchBar(){
   bar.style.display=batchSelectedAssets.size>0?"flex":"none";cnt.textContent=batchSelectedAssets.size+" selected"
 }
 function clearBatchSelection(){batchSelectedAssets.clear();updateBatchBar()}
-function batchDeleteAssets(){
-  if(!requireEdit())return;
+async function batchDeleteAssets(){
+  if(!await requireEdit())return;
   var del=[],block=[];
   batchSelectedAssets.forEach(function(aid){
     var a=grpAssets().find(function(g){return g.id===aid});

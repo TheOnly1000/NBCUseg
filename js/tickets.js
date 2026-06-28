@@ -29,7 +29,7 @@ function loadTickets(){
   ticketsCache=ticketsCache||[];
   if(!sb){showToast("Supabase not connected","e");renderTicketsView();return Promise.resolve()}
   return sb.from("tickets").select("*").order("created_at",{ascending:false}).then(function(r){
-    if(r.error){console.warn("Tickets load error:",r.error);showToast("Tickets DB error: "+r.error.message,"w");renderTicketsView();return}
+    if(r.error){console.error("Tickets load error:",r.error);showToast("Failed to load tickets. Try again.", "w");renderTicketsView();return}
     ticketsCache=r.data||[];
     sb.from("ticket_comments").select("*").order("created_at",{ascending:true}).then(function(cr){
       if(!cr.error&&cr.data){
@@ -105,7 +105,8 @@ function previewTicketImages(input){
   container.innerHTML="";
   if(!input||!input.files||!input.files.length)return;
   Array.from(input.files).forEach(function(f){
-    if(!f.type.match('image.*'))return;
+    if(!f.type.match('^image\/(png|jpeg|jpg|gif|webp)$'))return;
+    if(f.size>5*1024*1024){showToast("Image too large (max 5MB): "+f.name,"w");return}
     var reader=new FileReader();
     reader.onload=function(e){
       var wrap=document.createElement("div");wrap.className="relative w-16 h-16 rounded-lg overflow-hidden border border-ov/30";
@@ -191,8 +192,10 @@ async function submitNewTicket(){
   if(fileInput&&fileInput.files&&fileInput.files.length){
     for(var fi=0;fi<fileInput.files.length;fi++){
       var f=fileInput.files[fi];
-      if(!f.type.match('image.*'))continue;
+      if(!f.type.match('^image\/(png|jpeg|jpg|gif|webp)$'))continue;
+      if(f.size>5*1024*1024){showToast("Image too large (max 5MB): "+f.name,"w");continue}
       var dataUrl=await readFileAsDataUrl(f);
+      if(dataUrl.indexOf('data:image/')!==0)continue;
       images.push({name:f.name,data:dataUrl,type:f.type})
     }
   }
@@ -284,7 +287,8 @@ function openTicketDetail(ticketId){
   if(imgs&&Array.isArray(imgs)&&imgs.length){
     html+='<div class="mb-6"><div class="font-bold text-sm mb-2">Attachments</div><div class="flex flex-wrap gap-3">';
     imgs.forEach(function(img){
-      html+='<a href="'+(img.data||"")+'" target="_blank" class="block w-24 h-24 rounded-xl overflow-hidden border border-ov/30 bg-sclo hover:border-primary"><img src="'+(img.data||"")+'" alt="'+escHtml(img.name||"image")+'" class="w-full h-full object-cover"></a>'
+      var imgSrc = (img.data||"").indexOf("data:image/")===0 ? img.data : "";
+      html+='<a href="'+imgSrc+'" target="_blank" class="block w-24 h-24 rounded-xl overflow-hidden border border-ov/30 bg-sclo hover:border-primary"><img src="'+imgSrc+'" alt="'+escHtml(img.name||"image")+'" class="w-full h-full object-cover"></a>'
     });
     html+='</div></div>'
   }
@@ -565,7 +569,8 @@ function loadFsComments(assetId){
       if(imgs&&Array.isArray(imgs)&&imgs.length){
         html+='<div class="flex gap-1 mt-1">';
         imgs.slice(0,4).forEach(function(img){
-          html+='<img src="'+(img.data||"")+'" alt="" class="w-8 h-8 rounded object-cover border border-ov/20">'
+          var imgSrc = (img.data||"").indexOf("data:image/")===0 ? img.data : "";
+          html+='<img src="'+imgSrc+'" alt="" class="w-8 h-8 rounded object-cover border border-ov/20">'
         });
         if(imgs.length>4)html+='<span class="text-[10px] text-secondary self-center">+'+(imgs.length-4)+'</span>';
         html+='</div>'
@@ -583,7 +588,7 @@ function loadFsComments(assetId){
   })
 }
 async function submitFsComment(){
-  if(!requireEdit())return;
+  if(!await requireEdit())return;
   var input=document.getElementById("fs-comment-input");if(!input)return;
   var body=input.value.trim();if(!body){showToast("Write a comment","w");return}
   var vis=document.getElementById("fs-comment-visibility")?.value||"everyone";
@@ -591,7 +596,7 @@ async function submitFsComment(){
   if(!assetId){showToast("No asset selected","w");return}
   var c={asset_id:assetId,message:body,user_email:currentUser.email||"",user_name:currentUser.name||""};
   var {error}=await sb.from("ticket_comments").insert(c).select();
-  if(error){showToast("Error: "+error.message,"e");return}
+  if(error){console.error("submitFsComment error:", error);showToast("Failed to post comment. Try again.", "e");return}
   input.value="";
   // Notify @mentioned users (excluding self)
   var mm=body.match(/@(\w[\w\s]*\w|\w)/g);
@@ -622,14 +627,14 @@ async function submitFsComment(){
 async function deleteFsComment(commentId){
   if(!confirm("Delete this comment?"))return;
   var {error}=await sb.from("ticket_comments").delete().eq("id",commentId);
-  if(error){showToast("Error deleting: "+error.message,"e");return}
+  if(error){console.error("deleteFsComment error:", error);showToast("Failed to delete comment.", "e");return}
   if(currentFullscreenAssetId)loadFsComments(currentFullscreenAssetId);
   showToast("Comment deleted","s")
 }
 async function deleteTicketComment(commentId){
   if(!confirm("Delete this comment?"))return;
   var {error}=await sb.from("ticket_comments").delete().eq("id",commentId);
-  if(error){showToast("Error deleting: "+error.message,"e");return}
+  if(error){console.error("deleteTicketComment error:", error);showToast("Failed to delete comment.", "e");return}
   loadTickets();
   showToast("Comment deleted","s")
 }

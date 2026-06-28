@@ -283,7 +283,7 @@ function syncScheduleFromSheet() {
         }).catch(function(err) {
             hideLoader();
             renderSchedule(); renderDash();
-            showToast("Schedule save failed: " + (err && err.message ? err.message : err), "e", 8000);
+            console.error("syncScheduleFromSheet error:", err); showToast("Failed to sync schedule.", "e", 8000);
             console.error("syncScheduleFromSheet error:", err);
         });
     }).catch(function(err) {
@@ -358,7 +358,7 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
     }).catch(function(err) {
         renderSchedule();
         renderDash();
-        showToast("Schedule loaded but DB save failed: " + (err && err.message ? err.message : err), "e", 8000);
+        console.error("upsertScheduleEntriesForDate error:", err); showToast("Failed to save schedule.", "e", 8000);
         console.error("upsertScheduleEntriesForDate DB error:", err);
     });
 }
@@ -498,7 +498,7 @@ function updateScheduleAssignment(rowIndex, assignedTo) {
     sb.from("schedule_entries").update({ assigned_to: assignedTo, status: entry.status, updated_at: new Date().toISOString() })
         .eq("row_index", rowIndex).eq("schedule_date", entry.schedule_date)
         .then(function(result) {
-            if (result.error) { showToast("Failed to update assignment: " + result.error.message, "e"); return; }
+            if (result.error) { console.error("updateScheduleAssignment error:", result.error); showToast("Failed to update assignment.", "e"); return; }
             // Notify newly assigned user (skip self-assignment)
             var assignEmail = (assignedTo || "").toLowerCase();
             if (assignedTo && assignEmail !== curEmail && assignEmail !== (prevAssigned || "").toLowerCase()) {
@@ -589,7 +589,7 @@ function launchFromSchedule(rowIndex) {
         locked_at: nowISO
     }).then(function(result) {
         if (result.error) {
-            showToast("Create failed: " + result.error.message, "e");
+            console.error("launchFromSchedule error:", result.error); showToast("Failed to launch asset.", "e");
             showGlobalLoader(false);
             return;
         }

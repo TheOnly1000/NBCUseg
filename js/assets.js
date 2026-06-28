@@ -66,8 +66,8 @@ function buildFilters() {
         });
     }
     
-    const yearOptions = `<option value="All">All Years</option>` + [...years].sort().map(y => `<option value="${y}">${y}</option>`).join("");
-    const monthOptions = `<option value="All">All Months</option>` + [...months].map(m => `<option value="${m}">${m}</option>`).join("");
+    const yearOptions = `<option value="All">All Years</option>` + [...years].sort().map(y => `<option value="${sanitizeHTML(y)}">${sanitizeHTML(y)}</option>`).join("");
+    const monthOptions = `<option value="All">All Months</option>` + [...months].map(m => `<option value="${sanitizeHTML(m)}">${sanitizeHTML(m)}</option>`).join("");
     
     const dyr = document.getElementById("d-yr");
     const ayr = document.getElementById("a-yr");
@@ -209,10 +209,11 @@ function getThumbnailHtml(title, fallbackGradient, size) {
     if (!size) size = "full";
     var url = getThumbnailUrl(title);
     if (url) {
+        var safeUrl = sanitizeHTML(url);
         if (size === "thumb") {
-            return '<img src="' + url + '" class="w-14 h-9 rounded object-cover" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+            return '<img src="' + safeUrl + '" class="w-14 h-9 rounded object-cover" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
         }
-        return '<img src="' + url + '" class="w-full h-full object-cover" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+        return '<img src="' + safeUrl + '" class="w-full h-full object-cover" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
     }
     return '<div class="w-full h-full" style="background:' + (fallbackGradient || "linear-gradient(135deg,#667eea,#764ba2)") + '"></div>';
 }
@@ -518,8 +519,8 @@ function navFromFso(viewId) {
     }
 }
 
-function performDeleteAsset(aid) {
-    if (!canEdit()) { showToast("Viewers cannot delete assets.", "w"); return; }
+async function performDeleteAsset(aid) {
+    if (!await requireEdit()) { showToast("Viewers cannot delete assets.", "w"); return; }
     showGlobalLoader(true);
     var assetTitle = "";
     var assetData = grpAssets().find(function(a) { return a.id === aid; });
@@ -527,7 +528,7 @@ function performDeleteAsset(aid) {
 
     sb.from("segments").select("locked_by,handover_to,status").eq("asset_id", aid).limit(1).then(function(r) {
         showGlobalLoader(false);
-        if (r.error) { showToast("DB error: " + r.error.message, "e"); return; }
+        if (r.error) { console.error("performDeleteAsset error:", r.error); showToast("Failed to delete asset.", "e"); return; }
         var row = r.data && r.data[0];
         if (!row) { showToast("Asset not found in database.", "e"); return; }
         var assetStatus = row.status || "In Progress";
@@ -545,7 +546,7 @@ function performDeleteAsset(aid) {
             showGlobalLoader(true);
             sb.from("segments").delete().eq("asset_id", aid).then(function(r2) {
                 showGlobalLoader(false);
-                if (r2.error) { showToast("Delete error: " + r2.error.message, "e"); return; }
+                if (r2.error) { console.error("performDeleteAsset delete error:", r2.error); showToast("Failed to delete asset.", "e"); return; }
                 showToast("Asset deleted: " + aid, "s");
                 closeFso();
                 loadAllSegments().then(function() {
@@ -557,9 +558,11 @@ function performDeleteAsset(aid) {
                         if (!otherWithSameTitle && thumbnailCache[key]) {
                             var thumbUrl = thumbnailCache[key];
                             var thumbFile = decodeURIComponent(thumbUrl.split("/").pop());
-                            sb.from("asset_thumbnails").delete().eq("title", assetTitle).then(function() {});
-                            sb.storage.from("thumbnails").remove([thumbFile]).then(function() {});
-                            delete thumbnailCache[key];
+                            if (thumbFile.match(/^[a-zA-Z0-9_\-\.]+\.(png|jpg|jpeg|gif|webp|svg)$/i)) {
+                                sb.from("asset_thumbnails").delete().eq("title", assetTitle).then(function() {});
+                                sb.storage.from("thumbnails").remove([thumbFile]).then(function() {});
+                                delete thumbnailCache[key];
+                            }
                         }
                     }
                 });
@@ -568,8 +571,8 @@ function performDeleteAsset(aid) {
     });
 }
 
-function deleteAsset() {
+async function deleteAsset() {
     var aid = document.getElementById("fs-id")?.textContent.trim();
     if (!aid) { showToast("No asset selected.", "w"); return; }
-    performDeleteAsset(aid);
+    await performDeleteAsset(aid);
 }

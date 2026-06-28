@@ -44,7 +44,7 @@ function refreshCurrentView() {
 
 function loadAllSegments() {
     return sb.from("segments").select("*").order("asset_id").order("seg").then(function(r) {
-        if (r.error) { showToast("DB error: " + r.error.message, "e"); return; }
+        if (r.error) { console.error("loadAllSegments error:", r.error); showToast("Failed to load assets.", "e"); return; }
         globalSegments = {};
         (r.data || []).forEach(function(row) {
             var aid3 = row.asset_id;

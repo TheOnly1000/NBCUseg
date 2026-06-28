@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>Segmentor Admin Panel</title>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
@@ -171,7 +172,7 @@ function sendMagicLink() {
       if (r.error.message && r.error.message.indexOf("not found") >= 0) {
         st("Email not registered in system.", "e");
       } else {
-        st("Error: " + r.error.message, "e");
+        console.error("Magic link error:", r.error.message); st("Failed to send magic link.", "e");
       }
       return;
     }
@@ -194,7 +195,7 @@ function showLoginScreen() {
 
 async function loadUsers() {
   var { data: profiles, error } = await sb.from("profiles").select("*");
-  if (error) { st("Error loading users: " + error.message, "e"); return; }
+  if (error) { console.error("loadUsers error:", error); st("Failed to load users.", "e"); return; }
   var tbody = document.getElementById("user-table-body");
   var noUsers = document.getElementById("no-users");
   var info = document.getElementById("admin-info");
@@ -230,7 +231,7 @@ async function loadUsers() {
 
 async function updateRole(uid, email, name, newRole) {
   var { error } = await sb.from("profiles").update({ role: newRole }).eq("id", uid);
-  if (error) { st("Error updating role: " + error.message, "e"); return; }
+  if (error) { console.error("updateRole error:", error); st("Failed to update role.", "e"); return; }
   st("Updated " + (name || email) + " → " + newRole.toUpperCase(), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "role_change", asset_id: "",
@@ -242,7 +243,7 @@ async function updateRole(uid, email, name, newRole) {
 async function banUser(uid, email, name) {
   if (!confirm("Ban " + (name || email) + "? They will be unable to log in.")) return;
   var { error } = await sb.from("profiles").update({ banned: true }).eq("id", uid);
-  if (error) { st("Error banning user: " + error.message, "e"); return; }
+  if (error) { console.error("banUser error:", error); st("Failed to ban user.", "e"); return; }
   st("Banned " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_banned", asset_id: "",
@@ -253,7 +254,7 @@ async function banUser(uid, email, name) {
 
 async function unbanUser(uid, email, name) {
   var { error } = await sb.from("profiles").update({ banned: false }).eq("id", uid);
-  if (error) { st("Error unbanning user: " + error.message, "e"); return; }
+  if (error) { console.error("unbanUser error:", error); st("Failed to unban user.", "e"); return; }
   st("Unbanned " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_unbanned", asset_id: "",
@@ -273,7 +274,7 @@ async function removeUser(uid, email, name) {
   sb.from("ticket_views").delete().eq("user_email", email).then(function(){});
   // Delete profile
   var { error } = await sb.from("profiles").delete().eq("id", uid);
-  if (error) { st("Error removing profile: " + error.message, "e"); return; }
+  if (error) { console.error("removeUser error:", error); st("Failed to remove user.", "e"); return; }
   // Delete from auth.users via RPC
   try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e) { /* auth delete best-effort */ }
   st("Removed " + (name || email) + " and all associated data", "s");
@@ -293,7 +294,7 @@ async function loadAuditLogs() {
     .gte("created_at", sevenDaysAgo)
     .order("created_at", { ascending: false })
     .limit(200);
-  if (error) { st("Error loading audit logs: " + error.message, "e"); return; }
+  if (error) { console.error("loadAuditLogs error:", error); st("Failed to load audit logs.", "e"); return; }
   var tbody = document.getElementById("audit-table-body");
   var noAudit = document.getElementById("no-audit");
   tbody.innerHTML = "";
@@ -319,7 +320,7 @@ function closeAuditLogs() {
 async function clearAuditLogs() {
   if (!confirm("Delete ALL audit logs? This cannot be undone.")) return;
   var { error } = await sb.from("audit_logs").delete().gte("created_at", "2000-01-01");
-  if (error) { st("Error clearing logs: " + error.message, "e"); return; }
+  if (error) { console.error("clearAuditLogs error:", error); st("Failed to clear audit logs.", "e"); return; }
   st("All audit logs cleared", "s");
   closeAuditLogs();
 }
@@ -349,7 +350,7 @@ var thumbnailData = {};
 
 async function loadThumbnailManager() {
   var { data: segments, error } = await sb.from("segments").select("title");
-  if (error) { st("Error loading shows: " + error.message, "e"); return; }
+  if (error) { console.error("loadThumbnailManager error:", error); st("Failed to load shows.", "e"); return; }
   var groups = {};
   (segments || []).forEach(function(s) {
     var t = (s.title || "").trim();
@@ -454,7 +455,7 @@ async function uploadThumbnail(key, displayName, fileInput) {
       var { error: dbError } = await sb.from("asset_thumbnails").upsert(
         { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
       );
-      if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
+      if (dbError) { console.error("uploadThumbnail DB error:", dbError); st("Failed to save thumbnail.", "e"); showPlaceholder(imgContainer); }
       else {
         thumbnailData[key] = publicUrl;
         try {
@@ -471,7 +472,7 @@ async function uploadThumbnail(key, displayName, fileInput) {
         renderThumbnailList();
       }
     } else {
-      st("Upload error: " + (xhr.responseText || xhr.statusText), "e");
+      console.error("Thumbnail upload error:", xhr.responseText || xhr.statusText); st("Failed to upload thumbnail.", "e");
       showPlaceholder(imgContainer);
     }
     fileInput.value = "";

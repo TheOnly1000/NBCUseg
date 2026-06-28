@@ -108,8 +108,11 @@ function om(id) { openModal(id); }
 function cm(id) { closeModal(id); }
 
 function toggleSidebar() {
-    document.getElementById("sidebar")?.classList.toggle("open");
+    const sidebar = document.getElementById("sidebar");
+    sidebar?.classList.toggle("open");
     document.getElementById("sb-bd")?.classList.toggle("on");
+    const icon = document.getElementById("hamburger-icon");
+    if (icon) icon.textContent = sidebar?.classList.contains("open") ? "close" : "menu";
 }
 
 function toggleSidebarDesktop() {
@@ -129,8 +132,11 @@ function toggleSidebarDesktop() {
 }
 
 function closeSidebar() {
-    document.getElementById("sidebar")?.classList.remove("open");
+    const sidebar = document.getElementById("sidebar");
+    sidebar?.classList.remove("open");
     document.getElementById("sb-bd")?.classList.remove("on");
+    const icon = document.getElementById("hamburger-icon");
+    if (icon) icon.textContent = "menu";
 }
 
 function togglePasswordVisibility(inputId, buttonElement) {

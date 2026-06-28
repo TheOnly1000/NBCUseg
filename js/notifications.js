@@ -177,7 +177,7 @@ function directHandoverFromNotif(assetId, fromEmail) {
                 fetchNotifications();
             });
         }).catch(function(err) {
-            showGlobalLoader(false); showToast("Handover failed: " + err.message, "e");
+            console.error("Handover error:", err); showGlobalLoader(false); showToast("Handover failed. Try again.", "e");
         });
     });
 }
@@ -244,7 +244,7 @@ function ackAndLoad(notifId, assetId) {
 function clearNotif(notifId) {
     sb.from("notification_reads").delete().eq("notification_id", notifId).then(function(){});
     sb.from("notifications").delete().eq("id", notifId).then(function(r) {
-        if (r.error) { showToast("Failed to clear: " + r.error.message, "e"); return; }
+        if (r.error) { console.error("clearNotif error:", r.error); showToast("Failed to clear notification.", "e"); return; }
         fetchNotifications();
     });
 }
@@ -255,7 +255,7 @@ function clearAllNotifs() {
         var ids=r.data.map(function(n){return n.id});
         sb.from("notification_reads").delete().in("notification_id",ids).then(function(){});
         sb.from("notifications").delete().in("id",ids).then(function(r2){
-            if(r2.error){showToast("Failed to clear all: "+r2.error.message,"e");return}
+            if(r2.error){console.error("clearAllNotifs error:", r2.error);showToast("Failed to clear all notifications.", "e");return}
             fetchNotifications();showToast("All notifications cleared.","s")
         })
     })

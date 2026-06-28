@@ -883,7 +883,8 @@ async function createNewAsset() {
         locked_by: currentUser.email, locked_at: nowISO
     });
     if (insErr) {
-        showToast("Create failed: " + insErr.message, "e");
+        console.error("createNewAsset error:", insErr);
+        showToast("Failed to create asset. Try again.", "e");
         showGlobalLoader(false);
         return;
     }
@@ -1025,7 +1026,7 @@ async function saveSegmentsToDb(saveStatus, extra) {
     }
     var { error: upsErr } = await sb.from("segments").upsert(segRows, { onConflict: "asset_id, seg", ignoreDuplicates: false });
     showGlobalLoader(false);
-    if (upsErr) { window._saving = false; showToast("Save error: " + upsErr.message, "e"); if (extra && extra.callback) extra.callback(); return; }
+    if (upsErr) { window._saving = false; console.error("saveSegmentsToDb error:", upsErr); showToast("Failed to save. Try again.", "e"); if (extra && extra.callback) extra.callback(); return; }
     var currentSegs = {};
     segRows.forEach(function(sr) { currentSegs[sr.seg] = true; });
     var { data: dbSegs } = await sb.from("segments").select("seg").eq("asset_id", aid);
@@ -1351,7 +1352,7 @@ document.addEventListener("click", function(e) {
     else if (action === "view-report") { closeFso(); nav("editor"); loadToEditor(aid); setTimeout(function() { nav("report"); }, 300); }
     else if (action === "edit-asset") { closeFso(); nav("editor"); loadToEditor(aid); }
     else if (action === "delete-asset") {
-        performDeleteAsset(aid);
+        (async function(){await performDeleteAsset(aid);})();
     }
 });
 
