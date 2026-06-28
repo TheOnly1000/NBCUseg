@@ -46,17 +46,12 @@ tr:hover{background:#f1f5f9}
   <div class="card" style="max-width:380px;text-align:center">
     <span class="ms" style="font-size:48px;color:var(--primary);margin-bottom:12px">admin_panel_settings</span>
     <h1 style="font-size:22px;font-weight:800;margin:0 0 4px">Admin Panel</h1>
-    <p id="login-status" style="font-size:13px;color:var(--text2);margin:0 0 24px">Enter your email to receive a one-time code</p>
+    <p id="login-status" style="font-size:13px;color:var(--text2);margin:0 0 24px">Enter your email to receive a magic link</p>
     <div id="admin-email-step">
-      <input id="admin-email" type="email" class="inp" placeholder="Your email address" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')sendAdminOtp()">
-      <button onclick="sendAdminOtp()" id="admin-otp-send-btn" class="btn" style="width:100%">Send OTP</button>
+      <input id="admin-email" type="email" class="inp" placeholder="Your email address" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')sendMagicLink()">
+      <button onclick="sendMagicLink()" id="admin-magic-btn" class="btn" style="width:100%">Send Magic Link</button>
     </div>
-    <div id="admin-otp-step" style="display:none">
-      <input id="admin-otp" type="text" class="inp" placeholder="Enter 6-digit code" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')verifyAdminOtp()">
-      <button onclick="verifyAdminOtp()" id="admin-otp-verify-btn" class="btn" style="width:100%">Verify &amp; Login</button>
-      <p style="font-size:11px;color:var(--text2);margin-top:12px"><a href="#" onclick="event.preventDefault();resetAdminLogin()" style="color:var(--primary)">Use a different email</a></p>
-    </div>
-    <p style="font-size:11px;color:var(--text2);margin-top:16px">Only accessible from authorized devices. Check spam folder if OTP not received.</p>
+    <p style="font-size:11px;color:var(--text2);margin-top:16px">Only accessible from authorized devices. Check spam folder if not received.</p>
   </div>
 </div>
 
@@ -123,7 +118,6 @@ tr:hover{background:#f1f5f9}
 <script>
 const SUPABASE_URL = "https://fzbktwyurskhvtwkklzu.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDIwODEsImV4cCI6MjA5Nzg3ODA4MX0.MEZzsQ7BHs_Jh2wozEkJVml43T599w0PkG9GH8aAyUM";
-const ADMIN_PASS = "6776";
 
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -135,15 +129,45 @@ function st(msg, type) {
   setTimeout(function(){e.style.opacity="0";e.style.transform="translateX(14px)";setTimeout(function(){e.remove()},300)},3000);
 }
 
-function sendAdminOtp() {
+initAdminAuth();
+
+function initAdminAuth() {
+  sb.auth.getSession().then(function(r) {
+    if (r.data.session) checkAdminRole(r.data.session.user.email);
+  });
+  sb.auth.onAuthStateChange(function(event, session) {
+    if (event === "SIGNED_IN" && session) checkAdminRole(session.user.email);
+    else if (event === "SIGNED_OUT") showLoginScreen();
+  });
+}
+
+function checkAdminRole(email) {
+  sb.from("profiles").select("role").eq("email", email.toLowerCase()).maybeSingle().then(function(r) {
+    if (r.data && r.data.role === "admin") {
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("main-screen").style.display = "block";
+      document.getElementById("admin-info").textContent = "Logged in as " + email;
+      loadUsers();
+      loadThumbnailManager();
+      st("Authenticated as Admin", "s");
+    } else {
+      st("Access denied. You do not have admin privileges.", "e");
+      sb.auth.signOut();
+    }
+  });
+}
+
+function sendMagicLink() {
   var email = document.getElementById("admin-email").value.trim();
   if (!email) { st("Enter your email", "e"); return; }
-  var btn = document.getElementById("admin-otp-send-btn");
+  var btn = document.getElementById("admin-magic-btn");
   btn.disabled = true; btn.textContent = "Sending...";
-  sb.auth.signInWithOtp({ email: email, options: { shouldCreateUser: false } }).then(function(r) {
-    btn.disabled = false; btn.textContent = "Send OTP";
+  sb.auth.signInWithOtp({
+    email: email,
+    options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + "/admin.html" }
+  }).then(function(r) {
+    btn.disabled = false; btn.textContent = "Send Magic Link";
     if (r.error) {
-      // If user doesn't exist in auth, try magic link anyway
       if (r.error.message && r.error.message.indexOf("not found") >= 0) {
         st("Email not registered in system.", "e");
       } else {
@@ -151,55 +175,20 @@ function sendAdminOtp() {
       }
       return;
     }
-    document.getElementById("admin-email-step").style.display = "none";
-    document.getElementById("admin-otp-step").style.display = "block";
-    document.getElementById("login-status").textContent = "OTP sent to " + email + ". Check your inbox.";
-    st("OTP sent to " + email, "s");
+    document.getElementById("login-status").textContent = "Magic link sent to " + email + ". Check your inbox and click the link.";
+    st("Magic link sent!", "s");
   });
-}
-
-function verifyAdminOtp() {
-  var email = document.getElementById("admin-email").value.trim();
-  var otp = document.getElementById("admin-otp").value.trim();
-  if (!otp) { st("Enter the OTP code", "e"); return; }
-  var btn = document.getElementById("admin-otp-verify-btn");
-  btn.disabled = true; btn.textContent = "Verifying...";
-  sb.auth.verifyOtp({ email: email, token: otp, type: "email" }).then(function(r) {
-    btn.disabled = false; btn.textContent = "Verify & Login";
-    if (r.error) {
-      st("Invalid or expired OTP: " + r.error.message, "e");
-      return;
-    }
-    // Check if this user has admin role
-    sb.from("profiles").select("role").eq("email", email.toLowerCase()).maybeSingle().then(function(r2) {
-      if (r2.data && r2.data.role === "admin") {
-        document.getElementById("login-screen").style.display = "none";
-        document.getElementById("main-screen").style.display = "block";
-        document.getElementById("admin-info").textContent = "Logged in as " + email;
-        loadUsers();
-        loadThumbnailManager();
-        st("Authenticated as Admin", "s");
-      } else {
-        st("Access denied. You do not have admin privileges.", "e");
-        sb.auth.signOut();
-      }
-    });
-  });
-}
-
-function resetAdminLogin() {
-  document.getElementById("admin-email-step").style.display = "block";
-  document.getElementById("admin-otp-step").style.display = "none";
-  document.getElementById("login-status").textContent = "Enter your email to receive a one-time code";
-  document.getElementById("admin-email").value = "";
-  document.getElementById("admin-otp").value = "";
 }
 
 function logoutAdmin() {
   sb.auth.signOut();
+}
+
+function showLoginScreen() {
   document.getElementById("login-screen").style.display = "flex";
   document.getElementById("main-screen").style.display = "none";
-  resetAdminLogin();
+  document.getElementById("login-status").textContent = "Enter your email to receive a magic link";
+  document.getElementById("admin-email").value = "";
   document.getElementById("admin-info").textContent = "";
 }
 
@@ -239,19 +228,9 @@ async function loadUsers() {
   });
 }
 
-var SRV_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjMwMjA4MSwiZXhwIjoyMDk3ODc4MDgxfQ.D1M72cLrUwtYPU0UHQDlqDPYJgIVPYuUYJbMG_PTVac";
-
-function apiUpdate(table, data, id) {
-  return fetch(SUPABASE_URL + "/rest/v1/" + table + "?id=eq." + id, {
-    method: "PATCH",
-    headers: { "apikey": SRV_KEY, "Authorization": "Bearer " + SRV_KEY, "Content-Type": "application/json", "Prefer": "return=minimal" },
-    body: JSON.stringify(data)
-  });
-}
-
 async function updateRole(uid, email, name, newRole) {
-  var resp = await apiUpdate("profiles", { role: newRole }, uid);
-  if (!resp.ok) { var t = await resp.text(); st("Error updating role: " + (t || resp.statusText), "e"); return; }
+  var { error } = await sb.from("profiles").update({ role: newRole }).eq("id", uid);
+  if (error) { st("Error updating role: " + error.message, "e"); return; }
   st("Updated " + (name || email) + " → " + newRole.toUpperCase(), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "role_change", asset_id: "",
@@ -262,8 +241,8 @@ async function updateRole(uid, email, name, newRole) {
 
 async function banUser(uid, email, name) {
   if (!confirm("Ban " + (name || email) + "? They will be unable to log in.")) return;
-  var resp = await apiUpdate("profiles", { banned: true }, uid);
-  if (!resp.ok) { var t = await resp.text(); st("Error banning user: " + (t || resp.statusText), "e"); return; }
+  var { error } = await sb.from("profiles").update({ banned: true }).eq("id", uid);
+  if (error) { st("Error banning user: " + error.message, "e"); return; }
   st("Banned " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_banned", asset_id: "",
@@ -273,8 +252,8 @@ async function banUser(uid, email, name) {
 }
 
 async function unbanUser(uid, email, name) {
-  var resp = await apiUpdate("profiles", { banned: false }, uid);
-  if (!resp.ok) { var t = await resp.text(); st("Error unbanning user: " + (t || resp.statusText), "e"); return; }
+  var { error } = await sb.from("profiles").update({ banned: false }).eq("id", uid);
+  if (error) { st("Error unbanning user: " + error.message, "e"); return; }
   st("Unbanned " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_unbanned", asset_id: "",
@@ -284,26 +263,14 @@ async function unbanUser(uid, email, name) {
 }
 
 async function removeUser(uid, email, name) {
-  if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile and account. They will lose all access.")) return;
-  if (!confirm("Are you sure? This cannot be undone. Type OK to confirm.")) return;
-  // Delete profile directly via REST with service_role key (bypasses RLS)
-  var pResp = await fetch(SUPABASE_URL + "/rest/v1/profiles?id=eq." + uid, {
-    method: "DELETE",
-    headers: { "apikey": SRV_KEY, "Authorization": "Bearer " + SRV_KEY, "Content-Type": "application/json" }
-  });
-  if (!pResp.ok) { var pt = await pResp.text(); st("Error removing profile: " + (pt || pResp.statusText), "e"); return; }
-  // Try to delete from auth as well using admin endpoint
-  var authResp = await fetch(SUPABASE_URL + "/auth/v1/admin/users/" + uid, {
-    method: "DELETE",
-    headers: { "apikey": SRV_KEY, "Authorization": "Bearer " + SRV_KEY }
-  });
-  var statusMsg = "";
-  if (!authResp.ok) { var t = await authResp.text(); statusMsg = " (auth: " + (t || authResp.statusText) + ")"; }
-  else { statusMsg = " (auth also removed)"; }
-  st("Removed " + (name || email) + statusMsg, "s");
+  if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile and they will lose access.")) return;
+  if (!confirm("Are you sure? This cannot be undone.")) return;
+  var { error } = await sb.from("profiles").delete().eq("id", uid);
+  if (error) { st("Error removing user: " + error.message, "e"); return; }
+  st("Removed " + (name || email), "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_removed", asset_id: "",
-    details: "Removed user " + (name || email) + statusMsg
+    details: "Removed user " + (name || email)
   });
   loadUsers();
 }
@@ -459,51 +426,30 @@ async function uploadThumbnail(key, displayName, fileInput) {
   
   var fileName = key.replace(/[^a-z0-9]+/g, "-") + "-" + Date.now() + "." + (file.name.split(".").pop() || "jpg");
   
-  // Use XMLHttpRequest for progress tracking
-  var xhr = new XMLHttpRequest();
-  xhr.open("POST", "https://fzbktwyurskhvtwkklzu.supabase.co/storage/v1/object/thumbnails/" + encodeURIComponent(fileName));
-  xhr.setRequestHeader("authorization", "Bearer " + SRV_KEY);
-  xhr.setRequestHeader("apikey", SRV_KEY);
-  xhr.setRequestHeader("x-upsert", "true");
+  var { error: uploadError } = await sb.storage.from("thumbnails").upload(fileName, file, { upsert: true, contentType: file.type });
+  if (uploadError) { st("Upload error: " + uploadError.message, "e"); showPlaceholder(imgContainer); fileInput.value = ""; return; }
   
-  xhr.upload.onprogress = function(e) {
-    if (e.lengthComputable) showProgress(imgContainer, Math.round((e.loaded / e.total) * 100));
-  };
-  
-  xhr.onload = async function() {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      var publicUrl = "https://fzbktwyurskhvtwkklzu.supabase.co/storage/v1/object/public/thumbnails/" + encodeURIComponent(fileName);
-      var { error: dbError } = await sb.from("asset_thumbnails").upsert(
-        { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
-      );
-      if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
-      else {
-        thumbnailData[key] = publicUrl;
-        // Update localStorage cache so main app sees it instantly
-        try {
-          var raw = localStorage.getItem("seg_thumb_cache");
-          if (raw) {
-            var parsed = JSON.parse(raw);
-            if (parsed && parsed.cache) {
-              parsed.cache[key] = publicUrl;
-              localStorage.setItem("seg_thumb_cache", JSON.stringify(parsed));
-            }
-          }
-        } catch(e) { /* ignore */ }
-        st("Thumbnail saved for " + displayName, "s");
-        renderThumbnailList();
+  var publicUrl = sb.storage.from("thumbnails").getPublicUrl(fileName).data.publicUrl;
+  var { error: dbError } = await sb.from("asset_thumbnails").upsert(
+    { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
+  );
+  if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
+  else {
+    thumbnailData[key] = publicUrl;
+    try {
+      var raw = localStorage.getItem("seg_thumb_cache");
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.cache) {
+          parsed.cache[key] = publicUrl;
+          localStorage.setItem("seg_thumb_cache", JSON.stringify(parsed));
+        }
       }
-    } else {
-      var errTxt = xhr.responseText;
-      st("Upload error: " + (errTxt || xhr.statusText), "e");
-      showPlaceholder(imgContainer);
-    }
-    fileInput.value = "";
-  };
-  
-  xhr.onerror = function() { st("Upload failed: network error", "e"); showPlaceholder(imgContainer); fileInput.value = ""; };
-  
-  xhr.send(file);
+    } catch(e) { /* ignore */ }
+    st("Thumbnail saved for " + displayName, "s");
+    renderThumbnailList();
+  }
+  fileInput.value = "";
 }
 </script>
 </body>
