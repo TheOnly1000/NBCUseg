@@ -272,7 +272,7 @@ async function submitNewTicket(){
     if(curEmail)notifTargets[curEmail]=true;
   }
   Object.keys(notifTargets).forEach(function(em){
-    sb.from("notifications").insert({target_email:em,from_user:currentUser.name||currentUser.email||"",message:"Ticket #"+tid+": "+sub,notification_type:"ticket",ticket_id:dbId,read:false}).then(function(){})
+    sb.from("notifications").insert({target_email:em,from_user:currentUser.name||currentUser.email||"",message:"Ticket #"+tid+": "+sub,notification_type:"ticket",ticket_id:dbId,read:false}).then(function(r){if(r&&r.error)console.warn("Notif insert error:",r.error)})
   });
 }
 function readFileAsDataUrl(file){
@@ -491,9 +491,9 @@ async function raiseTicketNotif(ticketId){
   }
   var tag = ticket.priority === "high" ? " [HIGH]" : "";
   targets.forEach(function(em){
-    sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject+tag,notification_type:"ticket",ticket_id:ticket.id,read:false}).then(function(){})
+    sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject+tag,notification_type:"ticket",ticket_id:ticket.id,read:false}).then(function(r){if(r.error)console.warn("Raise notif insert error:",r.error)})
   });
-  showToast("Notification raised to "+(ticket.target_email?"recipient":"all users"),"s");
+  showToast("Raise sent to "+(ticket.target_email?"recipient":"all users"),"s");
   logAudit("raise_ticket",ticketId,"Raised ticket notification")
 }
 
