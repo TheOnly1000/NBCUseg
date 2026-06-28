@@ -798,9 +798,12 @@ async function loadToEditor(assetId) {
         var edThumbUrl = getThumbnailUrl(edTitle);
         if (edThumbUrl) {
             edThumb.style.background = "url(" + edThumbUrl + ") center/cover no-repeat";
+            edThumb.className = "";
             edThumbRow.style.display = "block";
         } else {
-            edThumbRow.style.display = "none";
+            edThumb.style.background = "";
+            edThumb.className = "skeleton";
+            edThumbRow.style.display = "block";
             if (edTitle) fetchThumbnailForTitle(edTitle);
         }
     }

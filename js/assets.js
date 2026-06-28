@@ -320,6 +320,7 @@ async function fetchThumbnailForTitle(title) {
             var edTitle = edTitleEl ? (edTitleEl.value || "") : "";
             if (edTitle.toLowerCase() === key) {
                 edThumbEl.style.background = "url(" + thumbnailSrc + ") center/cover no-repeat";
+                edThumbEl.className = "";
                 var edThumbRow = document.getElementById("editor-thumb-row");
                 if (edThumbRow) edThumbRow.style.display = "block";
             }

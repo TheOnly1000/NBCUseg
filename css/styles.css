@@ -194,4 +194,6 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 .batch-bar{position:sticky;top:0;z-index:20;background:var(--c-pf);border-bottom:2px solid var(--c-primary);padding:8px 16px;display:flex;align-items:center;gap:12px;border-radius:0 0 12px 12px;display:none}
 .tk-btn{background:var(--c-pf);color:var(--c-primary);border:none;padding:4px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
 #m-confirm{z-index:750}
+.skeleton{background:linear-gradient(90deg,var(--c-sclo,#e2e8f0) 25%,var(--c-sc,#f1f5f9) 50%,var(--c-sclo,#e2e8f0) 75%);background-size:200% 100%;animation:shimmer 1.5s ease infinite;border-radius:8px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 

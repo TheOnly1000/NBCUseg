@@ -89,6 +89,9 @@ function subscribeRealTime() {
     profilesChannel = sb.channel("profiles-rt")
         .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, function(payload) {
             loadUserProfiles();
+            if (payload.eventType === "UPDATE" && payload.new && currentUser && payload.new.id === currentUser.id && payload.new.banned) {
+                sb.auth.signOut().then(function() { window.location.href = "ban.html"; });
+            }
         })
         .subscribe(function(status) { if (status !== "SUBSCRIBED") console.warn("profiles-rt channel status:", status); });
 

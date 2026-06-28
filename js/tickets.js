@@ -299,9 +299,10 @@ function openTicketDetail(ticketId){
   var cmts=ticket._comments||[];
   if(cmts.length){
     cmts.forEach(function(c){
+      var canDel=currentUser&&(c.user_email===currentUser.email||currentUser.role==="admin");
       html+='<div class="mb-3 p-3 rounded-lg bg-sclo">';
-      html+='<div class="flex justify-between text-xs text-secondary mb-1"><span>'+escHtml(c.user_name||c.user_email||"")+'</span><span>'+(c.created_at?new Date(c.created_at).toLocaleString():"")+'</span></div>';
-      html+='<p class="text-sm">'+escHtml(c.message||"")+'</p></div>'
+      html+='<div class="flex justify-between text-xs text-secondary mb-1"><span>'+escHtml(c.user_name||c.user_email||"")+'</span><span class="flex items-center gap-1">'+(c.created_at?new Date(c.created_at).toLocaleString():"")+(canDel?' <button onclick="deleteTicketComment('+c.id+')" class="text-error hover:opacity-70" title="Delete"><span class="ms text-[12px]">delete</span></button>':'')+'</span></div>';
+      html+='<p class="text-sm">'+escHtml(c.message||"")+'</p><div class="flex gap-1 mt-1" id="tc-cv-'+c.id+'"></div></div>'
     })
   }else{
     html+='<p class="text-xs text-secondary mb-4">No comments yet.</p>'
@@ -322,9 +323,32 @@ function openTicketDetail(ticketId){
     sb.from("ticket_views").insert({ticket_id: Number(ticket.id), user_email: currentUser.email||""}).then(function(){});
     // Mark all comments as viewed by this user
     if (ticket._comments) {
+      var tcIds=[];
       ticket._comments.forEach(function(c){
+        tcIds.push(c.id);
         sb.from("comment_views").insert({comment_id: Number(c.id), user_email: currentUser.email||""}).then(function(){});
       });
+      // Fetch comment_views for read receipts
+      if(tcIds.length){
+        sb.from("comment_views").select("comment_id,user_email,user_name").in("comment_id",tcIds).then(function(cvr){
+          if(!cvr.error&&cvr.data){
+            var groups={};
+            cvr.data.forEach(function(v){
+              if(!groups[v.comment_id])groups[v.comment_id]=[];
+              groups[v.comment_id].push({email:v.user_email,name:v.user_name||v.user_email})
+            });
+            Object.keys(groups).forEach(function(cid){
+              var el=document.getElementById("tc-cv-"+cid);
+              if(el&&groups[cid].length){
+                el.innerHTML=groups[cid].map(function(v){
+                  var initial=(v.name||v.email).charAt(0).toUpperCase();
+                  return '<span class="w-4 h-4 rounded-full inline-flex items-center justify-center text-[7px] font-bold text-white" style="background:var(--c-primary)" title="'+escHtml(v.name||v.email)+'">'+initial+'</span>'
+                }).join('')
+              }
+            })
+          }
+        })
+      }
     }
     sb.from("ticket_views").select("user_email").eq("ticket_id", Number(ticket.id)).then(function(vr){
       if (!vr.error && vr.data) {
@@ -375,19 +399,22 @@ async function addTicketComment(ticketId){
   var toNotify={};
   var curEmail=currentUser.email||"";
   if(mm){
-    mm.forEach(function(m){
-      var n=m.substring(1).trim().toLowerCase();
-      for(var ek in userProfiles){
-        if(userProfiles[ek].name&&userProfiles[ek].name.toLowerCase()===n&&userProfiles[ek].email!==curEmail){
-          toNotify[userProfiles[ek].email]=true;
+    var hasEveryone=mm.some(function(m){return m.substring(1).trim().toLowerCase()==="everyone"});
+    if(hasEveryone){
+      for(var ek in userProfiles){if(userProfiles[ek].email!==curEmail)toNotify[userProfiles[ek].email]=true}
+    } else {
+      mm.forEach(function(m){
+        var n=m.substring(1).trim().toLowerCase();
+        for(var ek in userProfiles){
+          if(userProfiles[ek].name&&userProfiles[ek].name.toLowerCase()===n&&userProfiles[ek].email!==curEmail){
+            toNotify[userProfiles[ek].email]=true;
+          }
         }
-      }
-    });
+      });
+    }
   }
   if(ticket){
-    // Notify ticket creator if commenter is not the creator
     if(ticket.created_by_email!==curEmail)toNotify[ticket.created_by_email]=true;
-    // Notify target_email for personal tickets (but not the commenter)
     if(ticket.visibility==="personal"&&ticket.target_email&&ticket.target_email!==curEmail)toNotify[ticket.target_email]=true;
   }
   Object.keys(toNotify).forEach(function(em){
@@ -490,13 +517,41 @@ function loadFsComments(assetId){
     if(!assetComments.length&&!filteredTickets.length){list.innerHTML='<p class="text-xs text-secondary py-4 text-center">No comments or tickets for this asset.</p>';return}
     list.innerHTML="";
     // Render asset-level comments first
+    var cIds=[];
     assetComments.forEach(function(c){
+      cIds.push(c.id);
+      var canDel=currentUser&&(c.user_email===currentUser.email||currentUser.role==="admin");
       var html='<div class="p-3 rounded-lg bg-sclo mb-2">';
       html+='<div class="flex justify-between text-[10px] text-secondary mb-1"><span><span class="ms text-[10px] text-primary">chat</span> '+escHtml(c.user_name||c.user_email||"")+'</span>';
-      html+='<span>'+new Date(c.created_at).toLocaleString()+'</span></div>';
-      html+='<p class="text-sm">'+escHtml(c.message||"")+'</p></div>';
+      html+='<span class="flex items-center gap-2">'+new Date(c.created_at).toLocaleString();
+      if(canDel)html+='<button onclick="deleteFsComment('+c.id+')" class="text-error hover:opacity-70" title="Delete comment"><span class="ms text-[12px]">delete</span></button>';
+      html+='</span></div>';
+      html+='<p class="text-sm">'+escHtml(c.message||"")+'</p><div class="flex gap-1 mt-1" id="cv-'+c.id+'"></div></div>';
       list.innerHTML+=html
     });
+    // Fetch comment_views for read receipts
+    if(cIds.length){
+      sb.from("comment_views").select("comment_id,user_email,user_name").in("comment_id",cIds).then(function(cvr){
+        if(!cvr.error&&cvr.data){
+          var groups={};
+          cvr.data.forEach(function(v){
+            if(!groups[v.comment_id])groups[v.comment_id]=[];
+            groups[v.comment_id].push({email:v.user_email,name:v.user_name||v.user_email})
+          });
+          Object.keys(groups).forEach(function(cid){
+            var el=document.getElementById("cv-"+cid);
+            if(el&&groups[cid].length){
+              el.innerHTML='<span class="text-[9px] text-secondary mr-1">seen</span>'+groups[cid].map(function(v){
+                var initial=(v.name||v.email).charAt(0).toUpperCase();
+                var colors=["#003ec7","#059669","#dc2626","#7c3aed","#d97706","#0891b2","#be185d","#6366f1"];
+                var ci=groups[cid].indexOf(v)%colors.length;
+                return '<span class="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style="background:'+colors[ci]+'" title="'+escHtml(v.name||v.email)+'">'+initial+'</span>'
+              }).join('')
+            }
+          })
+        }
+      })
+    }
     // Render tickets
     filteredTickets.forEach(function(t){
       var html='<div class="p-3 rounded-lg '+(t.visibility==="personal"?"border border-amber-200 bg-amber-50/30":"bg-sclo")+'">';
@@ -541,23 +596,40 @@ async function submitFsComment(){
   var notifTargets={};
   var curEmail=currentUser.email||"";
   if(mm){
-    mm.forEach(function(m){
-      var n=m.substring(1).trim().toLowerCase();
-      for(var ek in userProfiles){
-        if(userProfiles[ek].name&&userProfiles[ek].name.toLowerCase()===n&&userProfiles[ek].email!==curEmail)notifTargets[userProfiles[ek].email]=true;
-      }
-    });
+    var hasEveryone=mm.some(function(m){return m.substring(1).trim().toLowerCase()==="everyone"});
+    if(hasEveryone){
+      for(var ek in userProfiles){if(userProfiles[ek].email!==curEmail)notifTargets[userProfiles[ek].email]=true}
+    } else {
+      mm.forEach(function(m){
+        var n=m.substring(1).trim().toLowerCase();
+        for(var ek in userProfiles){
+          if(userProfiles[ek].name&&userProfiles[ek].name.toLowerCase()===n&&userProfiles[ek].email!==curEmail)notifTargets[userProfiles[ek].email]=true;
+        }
+      });
+    }
   }
-  // Personal: notify only mentioned users; Everyone: also notify assigned users
-  if(vis!=="personal"){
-    // For everyone comments, also notify the asset owner if different
+  if(vis!=="personal"&&!notifTargets[curEmail]){
     var seg=globalSegments?globalSegments[assetId]:null;
-    if(seg&&seg.assigned_to&&seg.assigned_to!==(currentUser.email||""))notifTargets[seg.assigned_to]=true;
+    if(seg&&seg.assigned_to&&seg.assigned_to!==curEmail)notifTargets[seg.assigned_to]=true;
   }
   Object.keys(notifTargets).forEach(function(em){
-    sb.from("notifications").insert({target_email:em,from_user:currentUser.name||currentUser.email||"",message:currentUser.name+" mentioned you on "+assetId,notification_type:"mention",asset_id:assetId,read:false}).then(function(){})
+    sb.from("notifications").insert({target_email:em,from_user:currentUser.name||curEmail,message:currentUser.name+" commented on "+assetId,notification_type:"mention",asset_id:assetId,read:false}).then(function(){})
   });
   loadFsComments(assetId);showToast("Comment posted","s");logAudit("fs_comment",assetId,"Comment on asset")
+}
+async function deleteFsComment(commentId){
+  if(!confirm("Delete this comment?"))return;
+  var {error}=await sb.from("ticket_comments").delete().eq("id",commentId);
+  if(error){showToast("Error deleting: "+error.message,"e");return}
+  if(currentFullscreenAssetId)loadFsComments(currentFullscreenAssetId);
+  showToast("Comment deleted","s")
+}
+async function deleteTicketComment(commentId){
+  if(!confirm("Delete this comment?"))return;
+  var {error}=await sb.from("ticket_comments").delete().eq("id",commentId);
+  if(error){showToast("Error deleting: "+error.message,"e");return}
+  loadTickets();
+  showToast("Comment deleted","s")
 }
 // Patch openFso to load comments
 var _origFso=openFso;openFso=function(assetId){
