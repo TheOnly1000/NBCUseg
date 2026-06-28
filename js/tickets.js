@@ -211,25 +211,32 @@ async function submitNewTicket(){
     }
   }
   var actualVis=isEveryone?"everyone":vis;
-  var t={ticket_id:tid,subject:sub,body:body||"",asset_id:assetId,status:"open",priority:priority,created_by_email:currentUser.email||"",created_by_name:currentUser.name||"",visibility:actualVis,target_email:targetEmail};
-  if(images.length)t.images=images;
+  var insertData={ticket_id:tid,subject:sub,body:body||"",asset_id:assetId,status:"open",priority:priority,created_by_email:currentUser.email||"",created_by_name:currentUser.name||"",visibility:actualVis,target_email:targetEmail};
+  if(images.length)insertData.images=images;
   var result;
   try {
-    result = await sb.from("tickets").insert(t).select();
+    result = await sb.from("tickets").insert(insertData).select();
   } catch(e) {
     showToast("Connection lost. Please wait and try again.", "w", 5000);
     return;
   }
   var error = result.error;
   if(error){
-    if(error.message && error.message.indexOf("duplicate")>=0){
+    if(error.message && error.message.indexOf("column")>=0&&error.message.indexOf("priority")>=0){
+      delete insertData.priority;
+      var retry = await sb.from("tickets").insert(insertData).select();
+      if(retry.error){showToast("Failed to create ticket: "+retry.error.message, "e");return}
+      result = retry;
+    } else if(error.message && error.message.indexOf("duplicate")>=0){
       showToast("This ticket ID already exists. Please try again.", "w", 5000);
+      return;
     } else if(error.message && error.message.indexOf("network")>=0){
       showToast("Network error. Please check your connection and try again.", "w", 5000);
+      return;
     } else {
       showToast("Something went wrong. Please try again.", "w", 5000);
+      return;
     }
-    return;
   }
   var data = result.data;
   var dbId = (data && data.length) ? data[0].id : tid;
