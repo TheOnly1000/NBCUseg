@@ -426,30 +426,51 @@ async function uploadThumbnail(key, displayName, fileInput) {
   
   var fileName = key.replace(/[^a-z0-9]+/g, "-") + "-" + Date.now() + "." + (file.name.split(".").pop() || "jpg");
   
-  var { error: uploadError } = await sb.storage.from("thumbnails").upload(fileName, file, { upsert: true, contentType: file.type });
-  if (uploadError) { st("Upload error: " + uploadError.message, "e"); showPlaceholder(imgContainer); fileInput.value = ""; return; }
+  var session = (await sb.auth.getSession()).data.session;
+  if (!session) { st("Not authenticated", "e"); showPlaceholder(imgContainer); fileInput.value = ""; return; }
   
-  var publicUrl = sb.storage.from("thumbnails").getPublicUrl(fileName).data.publicUrl;
-  var { error: dbError } = await sb.from("asset_thumbnails").upsert(
-    { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
-  );
-  if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
-  else {
-    thumbnailData[key] = publicUrl;
-    try {
-      var raw = localStorage.getItem("seg_thumb_cache");
-      if (raw) {
-        var parsed = JSON.parse(raw);
-        if (parsed && parsed.cache) {
-          parsed.cache[key] = publicUrl;
-          localStorage.setItem("seg_thumb_cache", JSON.stringify(parsed));
-        }
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", SUPABASE_URL + "/storage/v1/object/thumbnails/" + encodeURIComponent(fileName));
+  xhr.setRequestHeader("authorization", "Bearer " + session.access_token);
+  xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+  xhr.setRequestHeader("x-upsert", "true");
+  
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) showProgress(imgContainer, Math.round((e.loaded / e.total) * 100));
+  };
+  
+  xhr.onload = async function() {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      var publicUrl = SUPABASE_URL + "/storage/v1/object/public/thumbnails/" + encodeURIComponent(fileName);
+      var { error: dbError } = await sb.from("asset_thumbnails").upsert(
+        { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
+      );
+      if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
+      else {
+        thumbnailData[key] = publicUrl;
+        try {
+          var raw = localStorage.getItem("seg_thumb_cache");
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.cache) {
+              parsed.cache[key] = publicUrl;
+              localStorage.setItem("seg_thumb_cache", JSON.stringify(parsed));
+            }
+          }
+        } catch(e) { /* ignore */ }
+        st("Thumbnail saved for " + displayName, "s");
+        renderThumbnailList();
       }
-    } catch(e) { /* ignore */ }
-    st("Thumbnail saved for " + displayName, "s");
-    renderThumbnailList();
-  }
-  fileInput.value = "";
+    } else {
+      st("Upload error: " + (xhr.responseText || xhr.statusText), "e");
+      showPlaceholder(imgContainer);
+    }
+    fileInput.value = "";
+  };
+  
+  xhr.onerror = function() { st("Upload failed: network error", "e"); showPlaceholder(imgContainer); fileInput.value = ""; };
+  
+  xhr.send(file);
 }
 </script>
 </body>
