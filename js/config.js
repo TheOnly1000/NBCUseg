@@ -2,6 +2,7 @@
 // 1. CONFIGURATION & GLOBAL STATE
 // ============================================================================
 
+const APP_VERSION = "2.0.1";
 const SUPABASE_URL = "https://fzbktwyurskhvtwkklzu.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDIwODEsImV4cCI6MjA5Nzg3ODA4MX0.MEZzsQ7BHs_Jh2wozEkJVml43T599w0PkG9GH8aAyUM";
 var sb = null;

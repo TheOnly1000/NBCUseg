@@ -222,4 +222,53 @@ function hexToRgb(hex) {
     return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
 }
 
+// ============================================================================
+// WHAT'S NEW (V2.0.1)
+// ============================================================================
+
+var _whatsNewFeatures = [
+    { icon: "search", title: "Global Search", desc: "Search across assets, tickets, schedule entries, and users from one place with date range, type, and scope filters." },
+    { icon: "grid_view", title: "Dashboard Widgets", desc: "At-a-glance cards showing Total Assets, My Active edits, Pending Handovers, Today's Schedule, and Open Tickets." },
+    { icon: "fiber_manual_record", title: "Live Now Section", desc: "See who's currently editing what, with elapsed timers and Live/Record badges, updated in real time." },
+    { icon: "history", title: "Recent Activity Feed", desc: "Lock and handover events from the last 24 hours, sorted newest first, with timestamps." },
+    { icon: "timer", title: "Segment Countdown", desc: "Live countdown in the editor showing time until the next scheduled event starts." },
+    { icon: "edit_note", title: "Auto-Type from Schedule", desc: "When loading an asset that matches a schedule entry, the Record/Live type is auto-selected." },
+    { icon: "person", title: "User Details on Click", desc: "Click any user in search results to see their name, email, role, and avatar." },
+    { icon: "security", title: "Security Improvements", desc: "Removed service role key from client, switched to Magic Link auth, added ban enforcement in realtime." }
+];
+
+function showWhatsNewIfNeeded(userName) {
+    try {
+        var lastSeen = localStorage.getItem("seg_seen_version") || "";
+        if (lastSeen === APP_VERSION) return;
+        var overlay = document.getElementById("whatsnew-overlay");
+        if (!overlay) return;
+        var nameEl = document.getElementById("wn-user-name");
+        if (nameEl) nameEl.textContent = userName || "there";
+        var list = document.getElementById("wn-features-list");
+        if (list) {
+            list.innerHTML = _whatsNewFeatures.map(function(f) {
+                return '<div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30"><div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">' + f.icon + '</span></div><div class="flex-1 min-w-0"><div class="font-bold text-sm text-on-surface">' + f.title + '</div><div class="text-[11px] text-secondary mt-0.5">' + f.desc + '</div></div></div>';
+            }).join("");
+        }
+        overlay.style.display = "flex";
+        overlay.style.transform = "translateY(100%)";
+        overlay.style.transition = "none";
+        requestAnimationFrame(function() {
+            overlay.style.transition = "transform .5s cubic-bezier(.16,1,.3,1)";
+            overlay.style.transform = "translateY(0)";
+        });
+    } catch(e) { console.warn("showWhatsNewIfNeeded error:", e); }
+}
+
+function dismissWhatsNew() {
+    try { localStorage.setItem("seg_seen_version", APP_VERSION); } catch(e) {}
+    var overlay = document.getElementById("whatsnew-overlay");
+    if (overlay) {
+        overlay.style.transition = "transform .4s cubic-bezier(.4,0,.2,1)";
+        overlay.style.transform = "translateY(100%)";
+        setTimeout(function() { overlay.style.display = "none"; }, 450);
+    }
+}
+
 

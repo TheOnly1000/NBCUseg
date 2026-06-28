@@ -86,6 +86,7 @@ async function handleUserLogin(event) {
             }, 30000);
         });
         subscribeRealTime();
+        setTimeout(function() { showWhatsNewIfNeeded(currentUser.name); }, 800);
     }, 400);
     if(loginBtn) { loginBtn.textContent = "Sign In"; loginBtn.disabled = false; }
 }
@@ -152,6 +153,7 @@ async function handleUserSignup(event) {
                 }, 15000);
             });
             subscribeRealTime();
+            setTimeout(function() { showWhatsNewIfNeeded(currentUser.name); }, 800);
         }, 400);
     }
 }

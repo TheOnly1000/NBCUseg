@@ -35,6 +35,26 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
   </div>
 </div>
 
+<div id="whatsnew-overlay" class="fixed inset-0 z-[900] flex items-end justify-center" style="background:rgba(0,0,0,0.5);display:none;transform:translateY(100%)">
+  <div class="w-full max-w-lg mx-auto rounded-t-3xl bg-scl shadow-2xl border-t border-ov/50 overflow-hidden" style="max-height:85vh">
+    <div class="px-6 pt-6 pb-3 border-b border-ov/30 flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,var(--c-primary),#7c3aed)">
+        <span class="ms text-[30px] text-white">celebration</span>
+      </div>
+      <div>
+        <h2 class="font-black text-[20px] text-on-surface tracking-tight">Segmentor <span class="text-primary">V2.0.1</span></h2>
+        <p class="text-xs text-secondary mt-0.5">Hey <strong id="wn-user-name">there</strong>, check out what's new!</p>
+      </div>
+    </div>
+    <div class="px-6 py-4 overflow-y-auto" style="max-height:55vh">
+      <div class="space-y-3" id="wn-features-list"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-ov/30 flex justify-end gap-3 bg-sclo">
+      <button onclick="dismissWhatsNew()" class="btn-primary px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ripple-host"><span class="ms text-[18px]">arrow_forward</span> Enter Segmentor</button>
+    </div>
+  </div>
+</div>
+
 <div id="m-profile" class="mw" onclick="if(event.target===this) closeModal('m-profile')">
   <div class="mb">
     <div class="flex justify-between items-center mb-4">

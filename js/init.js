@@ -45,6 +45,7 @@ async function initApp() {
             loadUserProfiles();
             loadScheduleFromDb(true);
             subscribeRealTime();
+            setTimeout(function() { showWhatsNewIfNeeded(currentUser.name); }, 800);
             // Periodic dashboard widget refresh
             if (window._widgetRefreshTimer) clearInterval(window._widgetRefreshTimer);
             window._widgetRefreshTimer = setInterval(function() {
