@@ -164,6 +164,9 @@ function processLogout() {
     if (scheduleChannel) sb.removeChannel(scheduleChannel);
     if (schedulePollTimer) { clearInterval(schedulePollTimer); schedulePollTimer = null; }
     if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
+    if (window._widgetRefreshTimer) { clearInterval(window._widgetRefreshTimer); window._widgetRefreshTimer = null; }
+    if (_liveNowTimer) { clearInterval(_liveNowTimer); _liveNowTimer = null; }
+    stopCountdown();
     globalSegments = {};
     userProfiles = {};
     currentUser = null;

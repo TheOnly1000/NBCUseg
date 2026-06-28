@@ -45,6 +45,15 @@ async function initApp() {
             loadUserProfiles();
             loadScheduleFromDb(true);
             subscribeRealTime();
+            // Periodic dashboard widget refresh
+            if (window._widgetRefreshTimer) clearInterval(window._widgetRefreshTimer);
+            window._widgetRefreshTimer = setInterval(function() {
+                var dashOn = document.querySelector(".vp.on");
+                if (dashOn && dashOn.id === "vp-dashboard") {
+                    renderDashboardWidgets();
+                    renderLiveNow();
+                }
+            }, 15000);
         } else {
             nav("login");
         }

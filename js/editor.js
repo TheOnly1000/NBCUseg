@@ -526,6 +526,7 @@ function undoLastDelete() {
 }
 
 function clearEditor() {
+    stopCountdown();
     requestConfirmation("Clear all segments?", "This will remove all segments from the timeline. Metadata will be preserved.", () => {
         const grid = document.getElementById("segmentGrid");
         if(grid) grid.innerHTML = "";
@@ -838,6 +839,8 @@ async function loadToEditor(assetId) {
     calcGrid();
     clearUnsaved();
     localStorage.removeItem("seg_draft");
+    applyScheduleTypeToEditor(assetId, targetRow[2]||"", targetRow[0]||"");
+    startCountdown();
     nav("editor");
     startEditorTimer(assetId);
     
@@ -1201,6 +1204,99 @@ function autoSaveDraft() {
         badgeElement.textContent = "auto-saved just now"; 
         badgeElement.style.opacity = "1";
         setTimeout(() => { badgeElement.style.opacity = "0"; }, 3000);
+    }
+}
+
+// ============================================================================
+// COUNTDOWN TO NEXT SCHEDULED EVENT
+// ============================================================================
+
+var _countdownTimer = null;
+function startCountdown() {
+    var section = document.getElementById("countdown-section");
+    var display = document.getElementById("countdown-display");
+    var eventName = document.getElementById("countdown-event-name");
+    var label = document.getElementById("countdown-label");
+    if (!section || !display) return;
+    if (_countdownTimer) clearInterval(_countdownTimer);
+    function tick() {
+        var now = new Date();
+        var nowIST = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+        var todayStr = nowIST.toISOString().slice(0,10);
+        var nowSec = nowIST.getHours() * 3600 + nowIST.getMinutes() * 60 + nowIST.getSeconds();
+        var upcoming = scheduleEntries.filter(function(e){
+            return e.schedule_date === todayStr && (e.status||"pending") !== "launched";
+        });
+        if (!upcoming.length) {
+            section.style.display = "none";
+            return;
+        }
+        section.style.display = "block";
+        var nearest = null;
+        var nearestDiff = Infinity;
+        upcoming.forEach(function(e){
+            var parts = (e.start_time_ist||"").split(":");
+            if (parts.length < 2) return;
+            var esec = parseInt(parts[0])*3600 + parseInt(parts[1])*60 + (parseInt(parts[2])||0);
+            var diff = esec - nowSec;
+            if (diff > -3600 && diff < nearestDiff) {
+                nearestDiff = diff;
+                nearest = e;
+            }
+        });
+        if (!nearest) {
+            section.style.display = "none";
+            return;
+        }
+        var parts2 = (nearest.start_time_ist||"00:00").split(":");
+        var targetSec = parseInt(parts2[0])*3600 + parseInt(parts2[1])*60 + (parseInt(parts2[2])||0);
+        var remaining = targetSec - nowSec;
+        if (remaining < 0) {
+            section.style.display = "none";
+            return;
+        }
+        var hrs = Math.floor(remaining / 3600);
+        var mins = Math.floor((remaining % 3600) / 60);
+        var secs = remaining % 60;
+        display.textContent = (hrs<10?"0":"")+hrs+":"+(mins<10?"0":"")+mins+":"+(secs<10?"0":"")+secs;
+        eventName.textContent = nearest.series_name || nearest.sheet_asset_id || "";
+        label.textContent = remaining > 600 ? "Countdown to next event" : "Event starting soon!";
+    }
+    tick();
+    _countdownTimer = setInterval(tick, 1000);
+}
+function stopCountdown() {
+    if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+    var section = document.getElementById("countdown-section");
+    if (section) section.style.display = "none";
+}
+
+// ============================================================================
+// AUTO-TAKE TYPE FROM SCHEDULE
+// ============================================================================
+
+function lookupScheduleType(assetId, title, dateStr) {
+    var d = dateStr || new Date().toISOString().slice(0,10);
+    var match = scheduleEntries.find(function(e){
+        if (e.sheet_asset_id && e.sheet_asset_id.toLowerCase() === (assetId||"").toLowerCase()) return true;
+        if (e.episode_title && title && e.episode_title.toLowerCase() === title.toLowerCase()) return true;
+        if (e.series_name && title && e.series_name.toLowerCase() === title.toLowerCase()) return true;
+        return false;
+    });
+    if (match && match.event_type) return match.event_type;
+    return null;
+}
+
+function applyScheduleTypeToEditor(assetId, title, dateStr) {
+    var schedType = lookupScheduleType(assetId, title, dateStr);
+    if (schedType) {
+        var normType = schedType.toLowerCase().indexOf("live") >= 0 ? "Live" : "Record";
+        var typeSelect = document.getElementById("metaType");
+        if (typeSelect) {
+            typeSelect.value = normType;
+            var badge = document.getElementById("meta-type-schedule-badge");
+            if (badge) { badge.textContent = "from schedule"; badge.style.display = "inline"; }
+        }
     }
 }
 

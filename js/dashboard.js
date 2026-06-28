@@ -2,80 +2,235 @@
 // 9. UI RENDERING (Search, Dashboard, Assets)
 // ============================================================================
 
-function liveSearch(query) {
-    const q = query.trim().toLowerCase();
-    const resultsContainer = document.getElementById("search-results");
-    if(!resultsContainer) return;
-    
+// --- Global Search (assets, tickets, schedule, users) ---
+function globalSearch(query) {
+    var q = (query || "").trim().toLowerCase();
+    var resultsContainer = document.getElementById("search-results");
+    if (!resultsContainer) return;
+    var dateFrom = document.getElementById("qs-date-from")?.value || "";
+    var dateTo = document.getElementById("qs-date-to")?.value || "";
+    var typeFilter = (document.getElementById("qs-type")?.value || "").toLowerCase();
+    var scope = document.getElementById("qs-scope")?.value || "all";
     searchResultsList = [];
-    
-    if (!q) {
-        resultsContainer.innerHTML = `<div class="px-4 py-8 text-center text-sm text-secondary">Type to search assets…</div>`;
+    if (!q && !dateFrom && !dateTo && !typeFilter) {
+        resultsContainer.innerHTML = '<div class="px-4 py-8 text-center text-sm text-secondary">Type to search across assets, tickets, schedule, and users\u2026</div>';
         return;
     }
-    
-    searchResultsList = grpAssets()
-        .filter(a => a.id.toLowerCase().includes(q) || a.title.toLowerCase().includes(q) || (a.owner || "").toLowerCase().includes(q))
-        .slice(0, 8);
-        
-    if (!searchResultsList.length) {
-        resultsContainer.innerHTML = `<div class="px-4 py-8 text-center text-sm text-secondary">No assets found for "<strong>${sanitizeHTML(q)}</strong>"</div>`;
+    var allResults = [];
+    if (scope === "all" || scope === "assets") {
+        grpAssets().forEach(function(a) {
+            var match = (!q || a.id.toLowerCase().includes(q) || a.title.toLowerCase().includes(q) || (a.owner||"").toLowerCase().includes(q) || a.rows.some(function(r){ return (r[8]||"").toLowerCase().includes(q) || (r[11]||"").toLowerCase().includes(q) }));
+            if (dateFrom && a.date && a.date < dateFrom) match = false;
+            if (dateTo && a.date && a.date > dateTo) match = false;
+            if (typeFilter && (a.type||"").toLowerCase() !== typeFilter) match = false;
+            if (match) allResults.push({ type: "asset", data: a, label: a.id + " - " + a.title, sub: (a.type||"REC") + " \u2022 " + a.rows.length + " segs" });
+        });
+    }
+    if (scope === "all" || scope === "tickets") {
+        (ticketsCache||[]).forEach(function(t) {
+            if (!q || (t.ticket_id||"").toLowerCase().includes(q) || (t.title||"").toLowerCase().includes(q) || (t.asset_id||"").toLowerCase().includes(q) || (t.description||"").toLowerCase().includes(q)) {
+                if (typeFilter && (t.event_type||"").toLowerCase() !== typeFilter) return;
+                allResults.push({ type: "ticket", data: t, label: (t.ticket_id||"#"+t.id) + " - " + (t.title||""), sub: (t.status||"open") + " \u2022 " + (t.priority||"normal") });
+            }
+        });
+    }
+    if (scope === "all" || scope === "schedule") {
+        scheduleEntries.forEach(function(e) {
+            if (!q || (e.sheet_asset_id||"").toLowerCase().includes(q) || (e.series_name||"").toLowerCase().includes(q) || (e.episode_title||"").toLowerCase().includes(q)) {
+                if (dateFrom && e.schedule_date < dateFrom) return;
+                if (dateTo && e.schedule_date > dateTo) return;
+                if (typeFilter && (e.event_type||"").toLowerCase() !== typeFilter) return;
+                allResults.push({ type: "schedule", data: e, label: (e.sheet_asset_id||"No ID") + " - " + (e.series_name||""), sub: (e.schedule_date||"") + " " + (e.start_time_ist||"") });
+            }
+        });
+    }
+    if (scope === "all" || scope === "users") {
+        Object.values(userProfiles||{}).forEach(function(u) {
+            if (!q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q)) {
+                allResults.push({ type: "user", data: u, label: u.name||u.email, sub: u.email + " \u2022 " + (u.role||"viewer") });
+            }
+        });
+    }
+    allResults.sort(function(a,b){ return a.label.localeCompare(b.label); });
+    allResults = allResults.slice(0, 30);
+    if (!allResults.length) {
+        resultsContainer.innerHTML = '<div class="px-4 py-8 text-center text-sm text-secondary">No results found for "<strong>' + sanitizeHTML(q) + '</strong>"</div>';
         return;
     }
-    
+    searchResultsList = allResults;
     searchResultIndex = 0;
-    resultsContainer.innerHTML = searchResultsList.map((asset, index) => {
-        const isLive = (asset.type || "").toLowerCase() === "live";
-        const activeClass = index === 0 ? "bg-pf text-primary" : "";
-        const badgeClass = isLive ? "bg-error text-white" : "bg-sc text-secondary";
-        
-        return `
-            <div class="search-result flex items-center gap-4 px-5 py-3 cursor-pointer rounded-xl mx-2 ${activeClass}" data-idx="${index}" onclick="selectSearchResult(${index})">
-                <div class="w-12 h-8 rounded-md flex-shrink-0 border border-ov/30 flex items-center justify-center text-[10px] font-bold text-white font-mono" style="background:${assetThumbnail(asset.id,asset.title).gradient}">${getShowCode(asset.id)}</div>
-                <div class="flex-1 min-w-0">
-                    <div class="font-bold font-mono text-sm">${sanitizeHTML(asset.id)}</div>
-                    <div class="text-xs truncate text-secondary">${sanitizeHTML(asset.title)}</div>
-                </div>
-                <span class="text-[10px] font-bold px-2 py-1 rounded font-mono uppercase ${badgeClass}">${sanitizeHTML(asset.type || "REC")}</span>
-            </div>
-        `;
+    resultsContainer.innerHTML = allResults.map(function(r, i) {
+        var icon = r.type === "asset" ? "inventory_2" : r.type === "ticket" ? "confirmation_number" : r.type === "schedule" ? "calendar_month" : "person";
+        var iconColor = r.type === "asset" ? "var(--c-primary)" : r.type === "ticket" ? "#8b5cf6" : r.type === "schedule" ? "#d97706" : "#16a34a";
+        var ac = i === 0 ? "bg-pf text-primary" : "";
+        var avatarHtml = "";
+        if (r.type === "user") {
+            avatarHtml = getUserAvatarHtml(r.data.email, r.data.name || r.data.email, 28);
+        } else {
+            avatarHtml = '<div class="w-9 h-9 rounded-xl flex items-center justify-center text-white flex-shrink-0" style="background:' + iconColor + '"><span class="ms text-[20px]">' + icon + '</span></div>';
+        }
+        return '<div class="search-result flex items-center gap-3 px-5 py-2.5 cursor-pointer rounded-xl mx-2 ' + ac + '" data-idx="' + i + '" onclick="selectSearchResult(' + i + ')">' +
+            avatarHtml +
+            '<div class="flex-1 min-w-0"><div class="font-bold text-sm truncate">' + sanitizeHTML(r.label) + '</div><div class="text-[10px] text-secondary truncate">' + r.sub + '</div></div>' +
+            '<span class="text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider text-secondary bg-sc border border-ov/30">' + r.type + '</span></div>';
     }).join("");
 }
 
-function qSearchKeys(event) {
-    if (event.key === "ArrowDown") {
-        event.preventDefault();
-        searchResultIndex = Math.min(searchResultIndex + 1, searchResultsList.length - 1);
-        highlightSearchResult();
-    } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        searchResultIndex = Math.max(searchResultIndex - 1, 0);
-        highlightSearchResult();
-    } else if (event.key === "Enter") {
-        event.preventDefault();
-        selectSearchResult(searchResultIndex, event.shiftKey);
-    }
+function globalSearchKeydown(event) {
+    if (event.key === "ArrowDown") { event.preventDefault(); searchResultIndex = Math.min(searchResultIndex + 1, searchResultsList.length - 1); highlightSearchResult(); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); searchResultIndex = Math.max(searchResultIndex - 1, 0); highlightSearchResult(); }
+    else if (event.key === "Enter") { event.preventDefault(); selectSearchResult(searchResultIndex); }
 }
 
 function highlightSearchResult() {
-    document.querySelectorAll(".search-result").forEach((el, index) => {
-        if (index === searchResultIndex) {
-            el.classList.add("bg-pf", "text-primary");
-            el.scrollIntoView({ block: "nearest" });
-        } else {
-            el.classList.remove("bg-pf", "text-primary");
-        }
+    document.querySelectorAll(".search-result").forEach(function(el, index) {
+        if (index === searchResultIndex) el.classList.add("bg-pf", "text-primary");
+        else el.classList.remove("bg-pf", "text-primary");
     });
 }
 
 function selectSearchResult(index) {
-    const selectedAsset = searchResultsList[index];
-    if (!selectedAsset) return;
+    var item = searchResultsList[index];
+    if (!item) return;
     closeModal("m-search");
-    openFso(selectedAsset.id);
+    var el = document.getElementById("sidebar-search");
+    if (el) el.value = "";
+    if (item.type === "asset") openFso(item.data.id);
+    else if (item.type === "ticket") { nav("tickets"); setTimeout(function(){ openTicketDetail(item.data.id); }, 300); }
+    else if (item.type === "schedule") { nav("schedule"); setTimeout(function(){ document.getElementById("schedule-date-filter").value = item.data.schedule_date; filterDay(0); }, 100); }
+    else if (item.type === "user") { showUserDetail(item.data); }
 }
 
+function showUserDetail(u) {
+    var avatarEl = document.getElementById("ud-avatar");
+    if (avatarEl) {
+        if (u.avatar) {
+            avatarEl.style.background = "url(" + u.avatar + ") center/cover no-repeat";
+            avatarEl.textContent = "";
+        } else {
+            avatarEl.style.background = "";
+            avatarEl.textContent = (u.name || u.email || "?").charAt(0).toUpperCase();
+        }
+    }
+    var nameEl = document.getElementById("ud-name");
+    if (nameEl) nameEl.textContent = u.name || "Unknown";
+    var emailEl = document.getElementById("ud-email");
+    if (emailEl) emailEl.textContent = u.email || "--";
+    var roleEl = document.getElementById("ud-role");
+    if (roleEl) roleEl.textContent = u.role || "viewer";
+    var idEl = document.getElementById("ud-id");
+    if (idEl) idEl.textContent = u.id || u.email || "--";
+    openModal("m-user-detail");
+}
+
+// --- Dashboard Widgets ---
+function renderDashboardWidgets() {
+    var wc = document.getElementById("dash-widgets");
+    if (!wc) return;
+    var allAssets = grpAssets();
+    var activeAssets = allAssets.filter(function(a){ return a.status !== "Ended"; });
+    var myEmail = (currentUser?.email||"").toLowerCase();
+    var myActive = activeAssets.filter(function(a){ return a.lockedBy && a.lockedBy.toLowerCase() === myEmail; });
+    var pendingHo = 0;
+    Object.values(globalSegments||{}).forEach(function(a){
+        a.rows.forEach(function(r){
+            if (r[13] && r[13] === "Handed Over" && r[15] && r[15].toLowerCase() === myEmail) pendingHo++;
+        });
+    });
+    var today = new Date().toISOString().slice(0,10);
+    var todaySched = scheduleEntries.filter(function(e){ return e.schedule_date === today; }).length;
+    var openTickets = (ticketsCache||[]).filter(function(t){ return t.status !== "Closed" && t.status !== "Resolved"; }).length;
+    var totalCount = allAssets.length;
+    wc.innerHTML = [
+        { icon: "inventory_2", label: "Total Assets", value: totalCount, color: "var(--c-primary)" },
+        { icon: "play_arrow", label: "My Active", value: myActive.length, color: "#16a34a" },
+        { icon: "forward", label: "Handovers", value: pendingHo, color: "#d97706" },
+        { icon: "calendar_month", label: "Today's Sched", value: todaySched, color: "#8b5cf6" },
+        { icon: "confirmation_number", label: "Open Tickets", value: openTickets, color: "#ef4444" }
+    ].map(function(w){
+        return '<div class="card ts p-4 flex items-center gap-3 bg-scl"><div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:' + w.color + '20;color:' + w.color + '"><span class="ms text-[20px]">' + w.icon + '</span></div><div><div class="font-black text-[20px] leading-none text-on-surface">' + w.value + '</div><div class="text-[10px] text-secondary font-bold mt-1 uppercase tracking-wider">' + w.label + '</div></div></div>';
+    }).join("");
+}
+
+// --- Live Now (actively edited assets) ---
+var _liveNowTimer = null;
+function renderLiveNow() {
+    var container = document.getElementById("dash-live-now");
+    var cards = document.getElementById("dash-live-now-cards");
+    if (!container || !cards) return;
+    var liveAssets = [];
+    Object.values(globalSegments||{}).forEach(function(a){
+        var firstRow = a.rows && a.rows[0];
+        if (!firstRow) return;
+        var status = firstRow[13] || "In Progress";
+        var lockedBy = firstRow[17] || "";
+        var lockedAt = firstRow[18] || "";
+        if (status === "In Progress" && lockedBy) {
+            var info = getUserInfo(lockedBy);
+            var secs = lockedAt ? Math.floor((Date.now() - new Date(lockedAt).getTime()) / 1000) : 0;
+            liveAssets.push({ id: a.id, title: a.title, type: a.type, lockedBy: lockedBy, lockedByName: info ? info.name : lockedBy.split("@")[0], lockedAt: lockedAt, elapsed: secs, isLive: (a.type||"").toLowerCase() === "live" });
+        }
+    });
+    liveAssets.sort(function(a,b){ return b.elapsed - a.elapsed; });
+    if (!liveAssets.length) {
+        container.style.display = "none";
+        if (_liveNowTimer) { clearInterval(_liveNowTimer); _liveNowTimer = null; }
+        return;
+    }
+    container.style.display = "block";
+    cards.innerHTML = liveAssets.map(function(a){
+        var h = Math.floor(a.elapsed / 3600);
+        var m = Math.floor((a.elapsed % 3600) / 60);
+        var s = a.elapsed % 60;
+        var ts = (h<10?"0":"")+h+":"+(m<10?"0":"")+m+":"+(s<10?"0":"")+s;
+        return '<div class="card ts p-4 flex items-start gap-3 bg-scl border-l-4" style="border-left-color:' + (a.isLive?"var(--c-error)":"var(--c-primary)") + '">' +
+            '<div class="flex-1 min-w-0"><div class="font-bold text-sm truncate">' + sanitizeHTML(a.title) + '</div>' +
+            '<div class="text-[10px] font-mono text-secondary mt-0.5">' + sanitizeHTML(a.id) + '</div>' +
+            '<div class="flex items-center gap-2 mt-2"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded ' + (a.isLive?"bg-error text-white":"bg-pf text-primary") + '">' + (a.isLive?"LIVE":"REC") + '</span>' +
+            getUserAvatarHtml(lockedBy, a.lockedByName, 18) +
+            '<span class="text-[11px] text-secondary font-medium">' + sanitizeHTML(a.lockedByName) + '</span></div></div>' +
+            '<div class="text-right flex-shrink-0"><div class="font-mono font-bold text-[16px] text-primary">' + ts + '</div><div class="text-[9px] text-secondary uppercase tracking-wider">editing</div></div></div>';
+    }).join("");
+    if (_liveNowTimer) clearInterval(_liveNowTimer);
+    _liveNowTimer = setInterval(renderLiveNow, 10000);
+}
+
+// --- Recent Activity ---
+function renderRecentActivity() {
+    var container = document.getElementById("dash-recent-activity");
+    var list = document.getElementById("dash-activity-list");
+    if (!container || !list) return;
+    var activities = [];
+    var now = Date.now();
+    var dayAgo = now - 86400000;
+    Object.values(globalSegments||{}).forEach(function(a){
+        var firstRow = a.rows && a.rows[0];
+        if (!firstRow) return;
+        var lockedAt = firstRow[18] || "";
+        if (lockedAt) {
+            var t = new Date(lockedAt).getTime();
+            if (t > dayAgo) activities.push({ time: t, text: a.id + " was locked by " + (firstRow[17]||"unknown"), icon: "lock", color: "#3b82f6" });
+        }
+        var hoAt = firstRow[16] || "";
+        if (hoAt) {
+            var t2 = new Date(hoAt).getTime();
+            if (t2 > dayAgo) activities.push({ time: t2, text: a.id + " was handed over to " + (firstRow[15]||"unknown"), icon: "forward", color: "#d97706" });
+        }
+    });
+    activities.sort(function(a,b){ return b.time - a.time; });
+    activities = activities.slice(0, 10);
+    if (!activities.length) { container.style.display = "none"; return; }
+    container.style.display = "block";
+    list.innerHTML = activities.map(function(a){
+        return '<div class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-scl border border-ov/30"><div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:' + a.color + '20;color:' + a.color + '"><span class="ms text-[14px]">' + a.icon + '</span></div><div class="flex-1 min-w-0 text-sm truncate">' + sanitizeHTML(a.text) + '</div><div class="text-[10px] text-secondary font-mono flex-shrink-0">' + fmtTimeIST(new Date(a.time).toISOString()) + '</div></div>';
+    }).join("");
+}
+
+// --- Enhanced renderDash with Live Now, Widgets, Activity ---
 function renderDash() {
+    renderDashboardWidgets();
+    renderLiveNow();
+    renderRecentActivity();
     const selectedYear = document.getElementById("d-yr")?.value || "All";
     const selectedMonth = document.getElementById("d-mo")?.value || "All";
     const gridContainer = document.getElementById("dgrid");

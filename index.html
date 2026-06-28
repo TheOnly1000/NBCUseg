@@ -54,6 +54,26 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
   </div>
 </div>
 
+<div id="m-user-detail" class="mw" onclick="if(event.target===this) closeModal('m-user-detail')">
+  <div class="mb max-w-sm">
+    <div class="flex justify-between items-center mb-5">
+      <div><h2 class="font-bold text-[19px]">User Details</h2><p class="text-xs text-secondary mt-0.5">Profile information</p></div>
+      <button onclick="closeModal('m-user-detail')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="flex flex-col items-center gap-4 pb-4">
+      <div id="ud-avatar" class="w-20 h-20 rounded-full bg-pf text-primary flex items-center justify-center text-[28px] font-bold border-2 border-primary/20 flex-shrink-0 bg-cover bg-center" style="line-height:1">?</div>
+      <div class="text-center">
+        <div id="ud-name" class="font-bold text-[17px]">Name</div>
+        <div id="ud-email" class="text-sm text-secondary mt-0.5 font-mono">email@example.com</div>
+      </div>
+    </div>
+    <div class="flex flex-col gap-3">
+      <div class="flex justify-between items-center px-4 py-3 rounded-xl bg-sclo border border-ov/30"><span class="text-xs font-bold text-secondary uppercase tracking-wider">Role</span><span id="ud-role" class="text-sm font-bold font-mono">viewer</span></div>
+      <div class="flex justify-between items-center px-4 py-3 rounded-xl bg-sclo border border-ov/30"><span class="text-xs font-bold text-secondary uppercase tracking-wider">User ID</span><span id="ud-id" class="text-xs font-mono text-secondary truncate max-w-[200px]">---</span></div>
+    </div>
+  </div>
+</div>
+
 <div id="m-newasset" class="mw" onclick="if(event.target===this) closeModal('m-newasset')">
   <div class="mb">
     <div class="flex justify-between items-start mb-6">
@@ -173,12 +193,29 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
 </div>
 
 <div id="m-search" class="mw" onclick="if(event.target===this) closeModal('m-search')">
-  <div class="mb max-w-lg p-0 overflow-hidden bg-scl">
+  <div class="mb max-w-lg p-0 overflow-hidden bg-scl" onclick="event.stopPropagation()">
     <div class="flex items-center gap-3 px-4 py-3.5 border-b border-ov/40">
       <span class="ms text-secondary text-[20px]">search</span>
-      <input id="qsearch" type="text" placeholder="Search assets by ID or title&hellip;" class="flex-1 text-base outline-none font-medium bg-transparent text-on-surface" style="border:none!important;background:transparent!important;" oninput="liveSearch(this.value)" onkeydown="qSearchKeys(event)" autocomplete="off">
+      <input id="qsearch" type="text" placeholder="Search assets, tickets, users, schedule&hellip;" class="flex-1 text-base outline-none font-medium bg-transparent text-on-surface" style="border:none!important;background:transparent!important;" oninput="globalSearch(this.value)" onkeydown="globalSearchKeydown(event)" autocomplete="off">
     </div>
-    <div id="search-results" class="max-h-[360px] overflow-y-auto py-2"></div>
+    <div class="flex gap-2 px-4 py-2 border-b border-ov/20 flex-wrap">
+      <input id="qs-date-from" type="date" class="sel text-xs py-1 px-2 w-[130px]" title="Date from">
+      <input id="qs-date-to" type="date" class="sel text-xs py-1 px-2 w-[130px]" title="Date to">
+      <select id="qs-type" class="sel text-xs py-1 px-2">
+        <option value="">All Types</option>
+        <option value="Record">Record</option>
+        <option value="Live">Live</option>
+      </select>
+      <select id="qs-scope" class="sel text-xs py-1 px-2">
+        <option value="all">All</option>
+        <option value="assets">Assets</option>
+        <option value="tickets">Tickets</option>
+        <option value="schedule">Schedule</option>
+        <option value="users">Users</option>
+      </select>
+      <button onclick="globalSearch(document.getElementById('qsearch').value)" class="btn-primary text-xs px-3 py-1 flex items-center gap-1"><span class="ms text-[14px]">search</span>Search</button>
+    </div>
+    <div id="search-results" class="max-h-[400px] overflow-y-auto py-2"></div>
   </div>
 </div>
 
@@ -441,7 +478,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
 
         <div id="vp-dashboard" class="vp on">
           <div class="p-5 lg:p-8 pb-10">
-            <div class="flex flex-wrap items-start justify-between gap-4 mb-8">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
               <div>
                   <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Dashboard</h1>
                   <p class="text-secondary text-sm mt-1"><span id="dash-count" class="text-primary font-medium"></span></p>
@@ -457,10 +494,19 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
                 <button onclick="loadAllSegments()" class="w-10 h-10 border border-ov rounded-xl flex items-center justify-center text-secondary hover:text-primary hover:border-primary sm bg-scl shadow-sm ripple-host"><span class="ms text-[20px]">refresh</span></button>
               </div>
             </div>
+            <div id="dash-widgets" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6"></div>
+            <div id="dash-live-now" class="mb-6" style="display:none">
+              <h2 class="font-bold text-[15px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[18px] text-error" style="animation:pulse 2s infinite">fiber_manual_record</span>Live Now</h2>
+              <div id="dash-live-now-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
             <div id="dgrid" class="lg-grid"></div>
             <div id="dash-upcoming-events" class="mt-8" style="display:none">
               <h2 class="font-bold text-[16px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[20px] text-primary">upcoming</span>Upcoming Events</h2>
               <div id="dash-upcoming-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+            <div id="dash-recent-activity" class="mt-8" style="display:none">
+              <h2 class="font-bold text-[16px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[20px] text-primary">history</span>Recent Activity</h2>
+              <div id="dash-activity-list" class="space-y-2"></div>
             </div>
           </div>
         </div>
@@ -559,9 +605,19 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
                 <div><label class="lbl">Date</label><input id="metaDate" type="date" class="inp"></div>
                 <div><label class="lbl">Asset ID</label><input id="metaAssetId" type="text" class="inp font-mono uppercase" placeholder="TDA&hellip;" oninput="markUnsaved()"></div>
                 <div class="col-span-2"><label class="lbl">Episode Title</label><input id="metaTitle" type="text" class="inp" placeholder="e.g. Premier League Final" oninput="markUnsaved()"></div>
-                <div><label class="lbl">Type</label><select id="metaType" class="sel w-full"><option>Record</option><option>Live</option></select></div>
+                <div><label class="lbl">Type <span id="meta-type-schedule-badge" class="text-[9px] text-primary font-mono" style="display:none"></span></label><select id="metaType" class="sel w-full"><option>Record</option><option>Live</option></select></div>
                 <div><label class="lbl text-primary">Exp. Segments</label><input id="metaExpSeg" type="number" value="4" oninput="calcGrid()" class="inp inp-colored font-bold"></div>
                 <div class="hidden lg:block"><label class="lbl text-primary">Exp. Duration</label><input id="metaExpDur" type="text" value="00:30:00" oninput="fmtIn(this);calcGrid();" class="inp inp-colored font-bold font-mono"></div>
+                <div class="col-span-2 lg:col-span-4" id="countdown-section" style="display:none">
+                  <label class="lbl text-primary" id="countdown-label">Countdown to next event</label>
+                  <div class="flex items-center gap-4 px-4 py-2 rounded-xl bg-sclo border border-ov/30">
+                    <span class="ms text-[22px] text-primary" id="countdown-icon">timer</span>
+                    <div>
+                      <span id="countdown-display" class="font-black font-mono text-[22px] text-primary">--:--:--</span>
+                      <span id="countdown-event-name" class="text-xs text-secondary ml-2"></span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 bg-scl border-t border-ov/30">
                 <div><label class="lbl text-primary">Breaks</label><input id="metaBreakCount" type="number" value="0" class="inp inp-colored font-bold" readonly><span class="text-[9px] text-secondary">auto-calculated</span></div>
