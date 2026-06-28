@@ -84,7 +84,17 @@ function fetchNotifications() {
 }
 function finishNotifRender(notifs) {
     var unreadCount = notifs.filter(function(n) { return !n.read; }).length;
-    if (unreadCount > _lastNotifCount && _lastNotifCount > 0 && !document.hidden) playNotifSound();
+    var newCount = unreadCount - _lastNotifCount;
+    if (newCount > 0 && _lastNotifCount > 0) {
+        if (document.hidden) {
+            var newNotifs = notifs.filter(function(n) { return !n.read; });
+            for (var i = 0; i < Math.min(newCount, newNotifs.length); i++) {
+                sendBrowserNotif("Segmentor", newNotifs[i].message || "New notification");
+            }
+        } else {
+            playNotifSound();
+        }
+    }
     _lastNotifCount = unreadCount;
     renderNotifications(notifs);
     var hasSync = notifs.some(function(n) { return n.sync_needed && !n.read; });
