@@ -896,7 +896,7 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
             </div>
             <table class="w-full text-left">
               <thead class="text-[10px] text-secondary uppercase font-bold font-mono border-b border-ov/30">
-                <tr><th class="p-3 w-28">ID</th><th class="p-3">Subject</th><th class="p-3 w-20">Visibility</th><th class="p-3 w-28">Created By</th><th class="p-3 w-20">Status</th><th class="p-3 w-24 text-right">Date</th></tr>
+                <tr><th class="p-3 w-32">Priority / ID</th><th class="p-3">Subject</th><th class="p-3 w-20">Visibility</th><th class="p-3 w-28">Created By</th><th class="p-3 w-20">Status</th><th class="p-3 w-24 text-right">Date</th></tr>
               </thead>
               <tbody id="ttbody" class="divide-y divide-ov/20 text-sm"></tbody>
             </table>
@@ -1024,6 +1024,13 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
           <div id="nt-to-suggestions" class="hidden mt-1 border border-ov/30 rounded-lg max-h-[150px] overflow-y-auto bg-scl"></div>
           <input id="nt-to-email" type="hidden" value="">
           <span id="nt-to-selected" class="text-[10px] text-primary font-bold hidden"></span>
+        </div>
+        <div><label class="lbl">Priority</label>
+          <select id="nt-priority" class="sel w-auto">
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
         </div>
         <div><label class="lbl">Images <span class="text-secondary">(optional)</span></label>
           <input id="nt-images" type="file" accept="image/*" multiple class="gi w-full text-sm" onchange="previewTicketImages(this)">

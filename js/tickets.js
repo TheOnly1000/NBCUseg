@@ -61,11 +61,21 @@ function renderTicketsView(){
     var empty=document.getElementById("tickets-empty");
     if(!filtered.length){tb.innerHTML="";if(empty)empty.style.display="block";hideSkel("tickets");return}
     if(empty)empty.style.display="none";
+    // Sort by priority (high first) then by created_at descending
+    var priorityOrder={high:0,medium:1,low:2};
+    filtered.sort(function(a,b){
+      var pa=priorityOrder[a.priority]!==undefined?priorityOrder[a.priority]:1;
+      var pb=priorityOrder[b.priority]!==undefined?priorityOrder[b.priority]:1;
+      if(pa!==pb)return pa-pb;
+      return new Date(b.created_at)-new Date(a.created_at);
+    });
     filtered.forEach(function(t,i){
       var sc=t.status==="open"?"text-amber-500 font-bold":t.status==="resolved"?"text-green-500":"text-secondary";
       var vi=t.visibility==="personal"?"lock":"public";
-      var tr='<tr class="hover:bg-sclo/50 smooth cursor-pointer" onclick="openTicketDetail(\''+t.id+'\')">';
-      tr+='<td class="py-3 px-4"><span class="font-mono text-xs font-bold text-primary">#'+escHtml(t.ticket_id||t.id)+'</span> <span class="ms text-[14px] text-secondary cursor-pointer hover:text-primary" onclick="event.stopPropagation();copyTicketId(\''+escHtml(t.ticket_id||t.id)+'\')" title="Copy ticket ID">content_copy</span></td>';
+      var pc=t.priority==="high"?"text-error":t.priority==="low"?"text-secondary":"text-amber-500";
+      var pi=t.priority==="high"?"priority_high":t.priority==="low"?"arrow_downward":"remove";
+      var tr='<tr class="hover:bg-sclo/50 smooth cursor-pointer'+(t.priority==="high"?' border-l-2 border-l-error':'')+'" onclick="openTicketDetail(\''+t.id+'\')">';
+      tr+='<td class="py-3 px-4"><span class="ms text-[14px] '+pc+' align-middle">'+pi+'</span> <span class="font-mono text-xs font-bold text-primary">#'+escHtml(t.ticket_id||t.id)+'</span> <span class="ms text-[14px] text-secondary cursor-pointer hover:text-primary align-middle" onclick="event.stopPropagation();copyTicketId(\''+escHtml(t.ticket_id||t.id)+'\')" title="Copy ticket ID">content_copy</span></td>';
       tr+='<td class="py-3 px-4"><span class="text-sm truncate max-w-[250px]">'+escHtml(t.subject||"")+'</span></td>';
       tr+='<td class="py-3 px-4"><span class="ms text-[14px] text-secondary">'+vi+'</span></td>';
       tr+='<td class="py-3 px-4"><span class="text-xs text-secondary">'+escHtml(t.created_by_name||t.created_by_email||"")+'</span></td>';
@@ -170,6 +180,7 @@ async function submitNewTicket(){
   var sub=document.getElementById("nt-subject")?.value.trim();
   var body=document.getElementById("nt-body")?.value.trim();
   var vis=document.getElementById("nt-visibility")?.value||"personal";
+  var priority=document.getElementById("nt-priority")?.value||"medium";
   if(!sub){showToast("Subject required","w");return}
   var tid=generateTicketId();
   var targetEmail=document.getElementById("nt-to-email")?.value||"";
@@ -200,7 +211,7 @@ async function submitNewTicket(){
     }
   }
   var actualVis=isEveryone?"everyone":vis;
-  var t={ticket_id:tid,subject:sub,body:body||"",asset_id:assetId,status:"open",created_by_email:currentUser.email||"",created_by_name:currentUser.name||"",visibility:actualVis,target_email:targetEmail};
+  var t={ticket_id:tid,subject:sub,body:body||"",asset_id:assetId,status:"open",priority:priority,created_by_email:currentUser.email||"",created_by_name:currentUser.name||"",visibility:actualVis,target_email:targetEmail};
   if(images.length)t.images=images;
   var result;
   try {
@@ -468,8 +479,9 @@ async function raiseTicketNotif(ticketId){
       if(userProfiles[ek].email!==(currentUser.email||""))targets.push(userProfiles[ek].email)
     }
   }
+  var tag = ticket.priority === "high" ? " [HIGH]" : "";
   targets.forEach(function(em){
-    sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject,notification_type:"ticket",ticket_id:ticket.id,read:false}).then(function(){})
+    sb.from("notifications").insert({target_email:em,message:"[Raised] Ticket #"+(ticket.ticket_id||ticket.id)+": "+ticket.subject+tag,notification_type:"ticket",ticket_id:ticket.id,read:false}).then(function(){})
   });
   showToast("Notification raised to "+(ticket.target_email?"recipient":"all users"),"s");
   logAudit("raise_ticket",ticketId,"Raised ticket notification")

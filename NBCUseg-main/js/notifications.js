@@ -32,16 +32,21 @@ function playNotifSound() {
 
 function requestNotifPermission() {
     if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
+        Notification.requestPermission().then(function(p) {});
     }
 }
 
 function sendBrowserNotif(title, body) {
     if (!("Notification" in window)) return;
     if (Notification.permission === "granted") {
-        new Notification(title, { body: body, icon: "/assets/logo.png" });
+        try { new Notification(title, { body: body, icon: "/assets/logo.png" }); } catch(e) {}
     }
 }
+
+document.addEventListener("click", function _firstClick() {
+    requestNotifPermission();
+    document.removeEventListener("click", _firstClick);
+}, { once: true });
 
 function fetchNotifications() {
     if (!currentUser || !currentUser.email) return;

@@ -42,7 +42,6 @@ async function initApp() {
             nav(lastView);
             loadAllSegments();
             fetchNotifications();
-            requestNotifPermission();
             loadUserProfiles();
             loadScheduleFromDb(true);
             subscribeRealTime();
