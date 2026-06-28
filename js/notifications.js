@@ -85,15 +85,12 @@ function fetchNotifications() {
 function finishNotifRender(notifs) {
     var unreadCount = notifs.filter(function(n) { return !n.read; }).length;
     var newCount = unreadCount - _lastNotifCount;
-    if (newCount > 0 && _lastNotifCount > 0) {
-        if (document.hidden) {
-            var newNotifs = notifs.filter(function(n) { return !n.read; });
-            for (var i = 0; i < Math.min(newCount, newNotifs.length); i++) {
-                sendBrowserNotif("Segmentor", newNotifs[i].message || "New notification");
-            }
-        } else {
-            playNotifSound();
+    if (newCount > 0) {
+        var newNotifs = notifs.filter(function(n) { return !n.read; });
+        for (var i = 0; i < Math.min(newCount, newNotifs.length); i++) {
+            sendBrowserNotif("Segmentor", newNotifs[i].message || "New notification");
         }
+        playNotifSound();
     }
     _lastNotifCount = unreadCount;
     renderNotifications(notifs);
