@@ -273,7 +273,10 @@ function openTicketDetail(ticketId){
   var ce=document.getElementById("ticket-detail-content");
   if(!ce)return;
   var html='<div class="p-2">';
-  html+='<div class="flex items-center justify-between mb-4"><div><h2 class="font-bold text-lg">#'+escHtml(ticket.ticket_id||ticket.id)+' <span class="ms text-[16px] text-secondary cursor-pointer hover:text-primary align-middle" onclick="event.stopPropagation();copyTicketId(\''+escHtml(ticket.ticket_id||ticket.id)+'\')" title="Copy ticket ID">content_copy</span> '+escHtml(ticket.subject)+'</h2>';
+  var pc=ticket.priority==="high"?"text-error bg-error/10":ticket.priority==="low"?"text-secondary bg-sclo":"text-amber-500 bg-amber-500/10";
+  var pi=ticket.priority==="high"?"priority_high":ticket.priority==="low"?"arrow_downward":"remove";
+  var pn=ticket.priority?ticket.priority.toUpperCase():"";
+  html+='<div class="flex items-center justify-between mb-4"><div><h2 class="font-bold text-lg">#'+escHtml(ticket.ticket_id||ticket.id)+' <span class="ms text-[16px] text-secondary cursor-pointer hover:text-primary align-middle" onclick="event.stopPropagation();copyTicketId(\''+escHtml(ticket.ticket_id||ticket.id)+'\')" title="Copy ticket ID">content_copy</span> '+escHtml(ticket.subject)+' '+(pn?'<span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] font-bold '+pc+'"><span class="ms text-[12px]">'+pi+'</span>'+pn+'</span>':'')+'</h2>';
   html+='<p class="text-xs text-secondary">by '+escHtml(ticket.created_by_name||ticket.created_by_email||"")+' on '+(ticket.created_at?new Date(ticket.created_at).toLocaleString():"")+'</p></div>';
   html+='<div class="flex gap-2">';
   if(ticket.status==="open"){
