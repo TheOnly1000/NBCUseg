@@ -1,0 +1,1091 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Telemundo Segmentor &mdash; Enterprise</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<script>
+tailwind.config={darkMode:"class",theme:{extend:{colors:{
+"surface":"var(--c-surface)", "scl":"var(--c-scl)", "sclo":"var(--c-sclo)", "sc":"var(--c-sc)", "sch":"var(--c-sch)",
+"on-surface":"var(--c-on-surface)", "osv":"var(--c-osv)", "outline":"var(--c-outline)", "ov":"var(--c-ov)",
+"primary":"var(--c-primary)", "op":"var(--c-op)", "pc":"var(--c-pc)", "opc":"var(--c-opc)",
+"pf":"var(--c-pf)", "opf":"var(--c-opf)", "secondary":"var(--c-secondary)", "error":"var(--c-error)",
+"ec":"var(--c-ec)", "oec":"var(--c-oec)", "bg":"var(--c-bg)"
+},fontFamily:{sans:["Hanken Grotesk","sans-serif"],mono:["JetBrains Mono","monospace"]}}}}
+</script>
+</head>
+<body>
+<div id="pbar"></div><div id="tr"></div>
+<div id="gl" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:9997;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center"><div class="bl"><div class="bl-inner"><div></div><div></div><div></div><div></div></div></div></div>
+<datalist id="sug"></datalist>
+
+<div id="welcome-overlay" class="fixed inset-0 z-[800] flex items-end justify-center" style="background:var(--c-bg);display:none;transform:translateY(100%)">
+  <div class="w-full max-w-md mx-auto text-center px-8 pb-16 pt-12" id="welcome-content">
+    <img src="https://logosandtypes.com/wp-content/uploads/2020/08/Telemundo.png" alt="Telemundo" class="h-10 w-auto mx-auto mb-6 object-contain">
+    <div class="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center" style="background:linear-gradient(135deg,var(--c-primary),#7c3aed);box-shadow:0 8px 32px rgba(0,0,0,.15)">
+      <span class="ms text-[34px] text-white">celebration</span>
+    </div>
+    <h2 class="font-black text-[28px] tracking-tight text-on-surface mb-2" id="welcome-heading">Welcome back!</h2>
+    <p class="text-secondary text-sm mb-8" id="welcome-name">Loading...</p>
+  </div>
+</div>
+
+<div id="whatsnew-overlay" class="fixed inset-0 z-[900] flex items-center justify-center" style="background:rgba(0,0,0,0.5);display:none;opacity:0">
+  <div class="w-full max-w-lg mx-auto rounded-2xl bg-scl shadow-2xl border border-ov/50 overflow-hidden" style="max-height:85vh" id="wn-dialog">
+    <div class="px-6 pt-6 pb-3 border-b border-ov/30 flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,var(--c-primary),#7c3aed)">
+        <span class="ms text-[30px] text-white">celebration</span>
+      </div>
+      <div>
+        <h2 class="font-black text-[20px] text-on-surface tracking-tight">Segmentor <span class="text-primary">V2.0.1</span></h2>
+        <p class="text-xs text-secondary mt-0.5">Hey <strong id="wn-user-name">there</strong>, check out what's new!</p>
+      </div>
+    </div>
+    <div class="px-6 py-4 overflow-y-auto" style="max-height:55vh">
+      <div class="space-y-3" id="wn-features-list"></div>
+    </div>
+    <div class="px-6 py-4 border-t border-ov/30 flex justify-end gap-3 bg-sclo">
+      <button onclick="dismissWhatsNew()" class="btn-primary px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 ripple-host"><span class="ms text-[18px]">arrow_forward</span> Enter Segmentor</button>
+    </div>
+  </div>
+</div>
+
+<div id="m-profile" class="mw" onclick="if(event.target===this) closeModal('m-profile')">
+  <div class="mb">
+    <div class="flex justify-between items-center mb-4">
+      <div><h2 class="font-bold text-[19px]">Edit Profile</h2><p class="text-xs text-secondary mt-0.5">Customize your account</p></div>
+      <button onclick="closeModal('m-profile')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <label class="avatar-upload" id="avatar-preview">
+        <input type="file" class="hidden" accept="image/png, image/jpeg, image/jpg" onchange="handleAvatarUpload(event)">
+        <span class="ms text-secondary" id="avatar-icon">add_a_photo</span>
+    </label>
+    <div class="flex flex-col gap-4">
+      <div><label class="lbl">Display Name</label><input id="pname" type="text" class="inp w-full"></div>
+      <div><label class="lbl">Email (Read-only)</label><input id="pemail" type="text" disabled class="inp w-full opacity-60 cursor-not-allowed border-none"></div>
+      <button onclick="saveUserProfile()" class="w-full btn-primary flex items-center justify-center gap-2 mt-2 ripple-host"><span class="ms text-[17px]">save</span> Save Profile</button>
+      <button onclick="requestConfirmation('Delete Account Permanently?','This will delete your account, all your data, and cannot be undone. Your segments will be preserved.',deleteUserAccount,'Delete Forever','delete_forever')" class="w-full text-xs font-bold flex items-center justify-center gap-2 py-3 rounded-xl text-error hover:bg-ec border border-transparent hover:border-error/20 ripple-host mt-2"><span class="ms text-[18px]">delete_forever</span> Delete My Account</button>
+    </div>
+  </div>
+</div>
+
+<div id="m-user-detail" class="mw" onclick="if(event.target===this) closeModal('m-user-detail')">
+  <div class="mb max-w-sm">
+    <div class="flex justify-between items-center mb-5">
+      <div><h2 class="font-bold text-[19px]">User Details</h2><p class="text-xs text-secondary mt-0.5">Profile information</p></div>
+      <button onclick="closeModal('m-user-detail')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="flex flex-col items-center gap-4 pb-4">
+      <div id="ud-avatar" class="w-20 h-20 rounded-full bg-pf text-primary flex items-center justify-center text-[28px] font-bold border-2 border-primary/20 flex-shrink-0 bg-cover bg-center" style="line-height:1">?</div>
+      <div class="text-center">
+        <div id="ud-name" class="font-bold text-[17px]">Name</div>
+        <div id="ud-email" class="text-sm text-secondary mt-0.5 font-mono">email@example.com</div>
+      </div>
+    </div>
+    <div class="flex flex-col gap-3">
+      <div class="flex justify-between items-center px-4 py-3 rounded-xl bg-sclo border border-ov/30"><span class="text-xs font-bold text-secondary uppercase tracking-wider">Role</span><span id="ud-role" class="text-sm font-bold font-mono">viewer</span></div>
+      <div class="flex justify-between items-center px-4 py-3 rounded-xl bg-sclo border border-ov/30"><span class="text-xs font-bold text-secondary uppercase tracking-wider">User ID</span><span id="ud-id" class="text-xs font-mono text-secondary truncate max-w-[200px]">---</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="m-newasset" class="mw" onclick="if(event.target===this) closeModal('m-newasset')">
+  <div class="mb">
+    <div class="flex justify-between items-start mb-6">
+      <div><h2 class="font-bold text-[19px]">New Asset</h2><p class="text-xs text-secondary mt-0.5">Begin editing a new media event</p></div>
+      <button onclick="closeModal('m-newasset')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="flex flex-col gap-4">
+      <div><label class="lbl">Asset ID <span class="text-error">*</span></label><input id="na-id" type="text" placeholder="e.g. TDA-EPL-1234" class="inp w-full font-mono uppercase"></div>
+      <div><label class="lbl">Event Title</label><input id="na-title" type="text" placeholder="e.g. Premier League Final" class="inp w-full"></div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="lbl">Type</label><select id="na-type" class="sel w-full"><option>Record</option><option>Live</option></select></div>
+        <div><label class="lbl">Date</label><input id="na-date" type="date" class="inp w-full"></div>
+      </div>
+      <button onclick="createNewAsset()" class="w-full btn-primary flex items-center justify-center gap-2 mt-2 ripple-host"><span class="ms text-[17px]">add_circle</span> Create &amp; Lock</button>
+    </div>
+  </div>
+</div>
+
+<div id="m-confirm" class="mw" onclick="if(event.target===this) closeModal('m-confirm')">
+  <div class="mb">
+    <div class="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center bg-ec text-error" id="confirm-icon-wrap"><span class="ms text-[28px]" id="confirm-icon">warning</span></div>
+    <h2 class="text-[19px] font-bold text-center mb-2" id="confirm-title">Are you sure?</h2>
+    <p class="text-sm text-secondary text-center mb-6" id="confirm-msg">This action cannot be undone.</p>
+    <div class="flex gap-3">
+      <button onclick="closeModal('m-confirm')" class="flex-1 py-2.5 border border-ov rounded-xl font-bold text-sm hover:bg-sc sm text-on-surface">Cancel</button>
+      <button id="confirm-ok" class="flex-1 py-2.5 rounded-xl font-bold text-sm sm text-white bg-error">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="m-shortcuts" class="mw" onclick="if(event.target===this) closeModal('m-shortcuts')">
+  <div class="mb max-w-md">
+    <div class="flex justify-between items-center mb-5">
+      <div><h2 class="font-bold text-[19px]">Keyboard Shortcuts</h2></div>
+      <button onclick="closeModal('m-shortcuts')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Confirm Action</span><kbd class="kbd">Enter</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Cancel / Close</span><kbd class="kbd">Esc</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Search</span><kbd class="kbd">Ctrl K</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">New Asset</span><kbd class="kbd">Alt N</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Add Segment</span><kbd class="kbd">Ctrl Enter</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Sync &amp; Save</span><kbd class="kbd">Ctrl S</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Save to DB</span><kbd class="kbd">Ctrl Shift S</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Copy MCR</span><kbd class="kbd">Ctrl C</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Dashboard</span><kbd class="kbd">Ctrl 1</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Assets</span><kbd class="kbd">Ctrl 2</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Editor</span><kbd class="kbd">Ctrl 3</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Tickets</span><kbd class="kbd">Ctrl 4</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Schedule</span><kbd class="kbd">Ctrl 5</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Manual</span><kbd class="kbd">Ctrl 6 / F1</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Billing</span><kbd class="kbd">Ctrl 7</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Undo Delete</span><kbd class="kbd">Ctrl Z</kbd></div>
+      <div class="flex justify-between items-center py-2 border-b border-ov/30"><span class="text-secondary">Undo / Redo</span><kbd class="kbd">Ctrl Z / Shift Z</kbd></div>
+      <!-- Dark Mode shortcut removed -->
+      <div class="flex justify-between items-center py-2"><span class="text-secondary">Shortcuts Help</span><kbd class="kbd">?</kbd></div>
+    </div>
+  </div>
+</div>
+
+<div id="m-about" class="mw" onclick="if(event.target===this) closeModal('m-about')">
+  <div class="mb max-w-sm text-center">
+    <div class="flex justify-end">
+      <button onclick="closeModal('m-about')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="px-2 pb-6">
+      <img src="https://logosandtypes.com/wp-content/uploads/2020/08/Telemundo.png" alt="Telemundo" class="h-8 w-auto mx-auto mb-4 object-contain">
+      <h2 class="font-black text-[22px] tracking-tight text-on-surface">Segmentor</h2>
+      <p class="text-xs text-secondary font-medium mt-1">Enterprise Broadcast Pipeline</p>
+      <div class="mt-4 inline-flex items-center gap-2 bg-pf text-primary px-4 py-1.5 rounded-full text-xs font-bold border border-primary/20">
+        <span class="ms text-[14px]">new_releases</span>     What's New &middot; v2.2.12
+      </div>
+      <ul class="mt-5 text-left text-sm text-secondary space-y-2 max-w-[280px] mx-auto">
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Interactive Manual &mdash; learn every feature with screenshots</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Keyboard-first &mdash; Enter to confirm, Esc to cancel everywhere</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Smart notification cleanup &mdash; stale entries auto-removed</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Thumbnail deduplication &mdash; shared across same-title shows</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Schedule launch now respects segment count from sheet</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Real-time asset locking &amp; handover with notifications</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Custom accent colors</span></li>
+        <li class="flex items-start gap-2"><span class="ms text-primary flex-shrink-0" style="font-size:16px">check</span> <span>Enhanced editor with glitch tracking &amp; MCR log formats</span></li>
+      </ul>
+      <div class="mt-4 text-[10px] text-secondary font-mono">Latest patch &middot; June 2026</div>
+      <div class="mt-6 pt-4 border-t border-ov/30 text-xs text-secondary">
+        Created by <strong class="text-on-surface">Aryan Arya</strong> for <a href="https://amagi.com" target="_blank" class="text-primary font-bold hover:underline">amagi.com</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="m-theme" class="mw" onclick="if(event.target===this) closeModal('m-theme')">
+  <div class="mb max-w-sm">
+    <div class="flex justify-between items-center mb-5">
+      <div><h2 class="font-bold text-[19px] text-on-surface">Theme Settings</h2><p class="text-xs text-secondary mt-0.5">Customize your look &amp; feel</p></div>
+      <button onclick="closeModal('m-theme')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="flex flex-col gap-5">
+      <div>
+        <label class="lbl mb-3">Accent Color</label>
+        <div class="flex flex-wrap gap-3 items-center" id="theme-presets">
+          <div class="tc-swatch active" style="background:#003ec7" data-color="#003ec7" onclick="setAccentColor('#003ec7',this)"></div>
+          <div class="tc-swatch" style="background:#059669" data-color="#059669" onclick="setAccentColor('#059669',this)"></div>
+          <div class="tc-swatch" style="background:#dc2626" data-color="#dc2626" onclick="setAccentColor('#dc2626',this)"></div>
+          <div class="tc-swatch" style="background:#7c3aed" data-color="#7c3aed" onclick="setAccentColor('#7c3aed',this)"></div>
+          <div class="tc-swatch" style="background:#d97706" data-color="#d97706" onclick="setAccentColor('#d97706',this)"></div>
+          <div class="tc-swatch" style="background:#0891b2" data-color="#0891b2" onclick="setAccentColor('#0891b2',this)"></div>
+          <div class="tc-swatch" style="background:#be185d" data-color="#be185d" onclick="setAccentColor('#be185d',this)"></div>
+          <div class="tc-swatch" style="background:#6366f1" data-color="#6366f1" onclick="setAccentColor('#6366f1',this)"></div>
+          <input type="color" id="theme-accent-picker" class="w-8 h-8 rounded-full cursor-pointer border-2 border-ov p-0" value="#003ec7" onchange="setAccentColor(this.value)">
+        </div>
+      </div>
+      <div class="py-3 px-4 rounded-xl bg-sclo text-sm text-secondary leading-relaxed" id="theme-message">
+        Hey <span class="font-bold text-on-surface" id="theme-username">User</span>, Dark mode was there but, I think white looks more professional. You can change the accent colors though.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="m-search" class="mw" onclick="if(event.target===this) closeModal('m-search')">
+  <div class="mb max-w-lg p-0 overflow-hidden bg-scl" onclick="event.stopPropagation()">
+    <div class="flex items-center gap-3 px-4 py-3.5 border-b border-ov/40">
+      <span class="ms text-secondary text-[20px]">search</span>
+      <input id="qsearch" type="text" placeholder="Search assets, tickets, users, schedule&hellip;" class="flex-1 text-base outline-none font-medium bg-transparent text-on-surface" style="border:none!important;background:transparent!important;" oninput="globalSearch(this.value)" onkeydown="globalSearchKeydown(event)" autocomplete="off">
+    </div>
+    <div class="flex gap-2 px-4 py-2 border-b border-ov/20 flex-wrap">
+      <input id="qs-date-from" type="date" class="sel text-xs py-1 px-2 w-[130px]" title="Date from">
+      <input id="qs-date-to" type="date" class="sel text-xs py-1 px-2 w-[130px]" title="Date to">
+      <select id="qs-type" class="sel text-xs py-1 px-2">
+        <option value="">All Types</option>
+        <option value="Record">Record</option>
+        <option value="Live">Live</option>
+      </select>
+      <select id="qs-scope" class="sel text-xs py-1 px-2">
+        <option value="all">All</option>
+        <option value="assets">Assets</option>
+        <option value="tickets">Tickets</option>
+        <option value="schedule">Schedule</option>
+        <option value="users">Users</option>
+      </select>
+      <button onclick="globalSearch(document.getElementById('qsearch').value)" class="btn-primary text-xs px-3 py-1 flex items-center gap-1"><span class="ms text-[14px]">search</span>Search</button>
+    </div>
+    <div id="search-results" class="max-h-[400px] overflow-y-auto py-2"></div>
+  </div>
+</div>
+
+<div id="m-glitches" class="mw" onclick="if(event.target===this) closeModal('m-glitches')">
+  <div class="mb max-w-2xl p-6">
+    <div class="flex justify-between items-center mb-4">
+      <div>
+          <h2 class="font-bold text-[20px]">Manage Glitches</h2>
+          <p class="text-xs text-secondary mt-0.5">Segment <span id="glitch-modal-seg" class="text-primary font-bold font-mono">A</span></p>
+      </div>
+      <button onclick="closeModal('m-glitches')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary hover:text-error"><span class="ms">close</span></button>
+    </div>
+    
+    <div class="ts bg-scl border border-ov/50 rounded-xl mb-5 max-h-[300px] overflow-y-auto shadow-inner">
+      <table class="w-full text-left">
+        <thead class="bg-sclo text-[10px] text-secondary uppercase font-bold font-mono sticky top-0 border-b border-ov/50 z-10">
+          <tr>
+            <th class="p-3 w-40">Glitch Type</th><th class="p-3 w-28">Time IN</th><th class="p-3 w-28">Time OUT</th><th class="p-3 w-24 text-error">Duration</th><th class="p-3 w-12"></th>
+          </tr>
+        </thead>
+        <tbody id="glitch-modal-tbody" class="divide-y divide-ov/30 text-sm"></tbody>
+      </table>
+    </div>
+    
+    <div class="flex gap-3">
+        <button onclick="addGlitchRow()" class="btn-secondary flex-1 flex items-center justify-center gap-2 ripple-host"><span class="ms text-[17px]">add</span> Add Glitch</button>
+        <button onclick="saveGlitchModal()" class="btn-primary flex-1 flex items-center justify-center gap-2 ripple-host"><span class="ms text-[17px]">check_circle</span> Save Glitches</button>
+    </div>
+  </div>
+</div>
+<div id="m-notif" class="mw" onclick="if(event.target===this) closeModal('m-notif')">
+  <div class="mb max-w-md">
+    <div class="flex justify-between items-center mb-4">
+      <div class="flex items-center gap-3">
+        <h2 class="font-bold text-[19px]">Notifications</h2>
+        <button onclick="clearAllNotifs()" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--c-sc);color:var(--c-secondary);background:none;cursor:pointer">Clear All</button>
+      </div>
+      <button onclick="closeModal('m-notif')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div id="notif-list" class="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+      <div class="text-center text-secondary text-sm py-8">No notifications.</div>
+    </div>
+  </div>
+</div>
+
+<div id="m-handover" class="mw" onclick="if(event.target===this) closeModal('m-handover')">
+  <div class="mb">
+    <div class="flex justify-between items-center mb-4">
+      <div><h2 class="font-bold text-[19px]">Handover Asset</h2><p class="text-xs text-secondary mt-0.5" id="handover-asset-label">Select the next editor</p></div>
+      <button onclick="closeModal('m-handover')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="flex flex-col gap-4">
+      <div><label class="lbl">Handover To</label>
+        <select id="handover-user-select" class="sel w-full">
+          <option value="">Loading users...</option>
+        </select>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="closeModal('m-handover')" class="flex-1 btn-secondary">Cancel</button>
+        <button onclick="confirmHandover()" class="flex-1 btn-primary flex items-center justify-center gap-2 ripple-host"><span class="ms text-[17px]">forward</span> Handover</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="m-request-ho" class="mw" onclick="if(event.target===this) closeModal('m-request-ho')">
+  <div class="mb">
+    <div class="flex justify-between items-center mb-4">
+      <div><h2 class="font-bold text-[19px]">Request Handover</h2><p class="text-xs text-secondary mt-0.5" id="request-ho-label">Request asset from current editor</p></div>
+      <button onclick="closeModal('m-request-ho')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div class="flex flex-col gap-4">
+      <p class="text-sm text-secondary" id="request-ho-info">This asset is currently being edited by another user. Send them a handover request.</p>
+      <div class="flex gap-3">
+        <button onclick="closeModal('m-request-ho')" class="flex-1 btn-secondary">Cancel</button>
+        <button onclick="sendHandoverRequest()" class="flex-1 btn-primary flex items-center justify-center gap-2 ripple-host"><span class="ms text-[17px]">send</span> Send Request</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="fso">
+  <div id="fsh">
+    <div id="fs-title-gradient" class="absolute inset-0"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+    <button onclick="closeFso()" class="absolute top-4 left-4 z-10 w-10 h-10 rounded-full flex items-center justify-center text-white sm hover:bg-white/20" style="background:rgba(0,0,0,.4);backdrop-filter:blur(8px)"><span class="ms">arrow_back</span></button>
+    <button onclick="navFromFso('report')" class="absolute top-4 right-4 z-10 px-4 py-2 rounded-full flex items-center gap-1.5 text-xs font-bold text-white sm hover:bg-white/20" style="background:rgba(0,0,0,.5);backdrop-filter:blur(8px)"><span class="ms text-[16px]">description</span> Full Report</button>
+    <div class="absolute bottom-0 left-0 p-6 z-10">
+      <div class="flex items-center gap-2 mb-2">
+        <span id="fs-type" class="px-2.5 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider font-mono bg-primary text-white">EVENT</span>
+        <span id="fs-id" class="px-2.5 py-0.5 rounded-md text-[11px] font-mono text-white border border-white/30" style="background:rgba(0,0,0,.4)">ID</span>
+      </div>
+      <h1 id="fs-title" class="text-white font-extrabold text-2xl drop-shadow-lg">Title</h1>
+    </div>
+  </div>
+  <div id="fsb" class="p-6">
+    <div class="flex gap-3 mb-6 flex-wrap">
+      <button onclick="navFromFso('editor')" class="btn-primary flex items-center gap-2 ripple-host"><span class="ms text-[17px]">edit</span> Edit in Editor</button>
+      <button onclick="navFromFso('report')" class="btn-secondary flex items-center gap-2 ripple-host"><span class="ms text-[17px]">description</span> Full Report</button>
+      <button onclick="deleteAsset()" class="text-xs font-bold flex items-center gap-1.5 sm px-4 py-2.5 rounded-xl text-error hover:bg-ec border border-transparent hover:border-error/20 ripple-host ml-auto"><span class="ms text-[18px]">delete</span> Delete</button>
+    </div>
+    <div id="fs-status-bar" class="flex items-center gap-4 mb-2 px-1 text-xs font-medium text-secondary">
+      <span id="fs-owner-display" class="flex items-center gap-1.5"></span>
+      <span class="text-ov">|</span>
+      <span id="fs-status-badge" class="font-bold"></span>
+      <span id="fs-locked-display" class="flex items-center gap-1"></span>
+    </div>
+    <div id="fs-handover-bar" class="flex items-center gap-4 mb-4 px-1 text-xs font-medium text-secondary" style="display:none">
+      <span class="flex items-center gap-1"><span class="ms text-[14px] text-amber-500">forward</span> Handed over by <strong id="fs-handover-by" class="text-on-surface"></strong></span>
+      <span class="text-ov">|</span>
+      <span>To: <strong id="fs-handover-to" class="text-on-surface"></strong></span>
+      <span class="text-ov">|</span>
+      <span id="fs-handover-time" class="font-mono"></span>
+    </div>
+    <div id="fs-transfer-history" class="flex items-center gap-3 mb-4 px-1 text-xs font-medium text-secondary" style="display:none">
+      <span class="ms text-[14px] text-primary">history</span>
+      <span id="fs-transfer-list" class="text-on-surface"></span>
+    </div>
+    <div class="ts bg-scl rounded-2xl border border-ov/40 shadow-sm mb-6">
+      <table class="w-full text-left" style="min-width:700px">
+        <thead class="border-b border-ov/50 text-[10px] text-secondary uppercase font-bold font-mono bg-sclo">
+          <tr><th class="p-4 w-16 text-center">Seg</th><th class="p-4 w-28">TC In</th><th class="p-4 w-28">TC Out</th><th class="p-4 w-24 text-primary">Duration</th><th class="p-4 w-44 text-error">Glitch Info</th><th class="p-4">Comments</th></tr>
+        </thead>
+        <tbody id="fs-grid" class="divide-y divide-ov/30 text-sm"></tbody>
+      </table>
+    </div>
+    <div class="rounded-2xl overflow-hidden bg-sch border border-ov/20 shadow-sm">
+      <div class="flex border-b border-ov/30 bg-sclo">
+          <button onclick="switchFsTab('detailed')" id="fs-tab-detailed" class="tab-btn active flex-1">Detailed Log</button>
+          <button onclick="switchFsTab('short')" id="fs-tab-short" class="tab-btn flex-1 border-l border-ov/30">Short Format</button>
+      </div>
+      <div class="p-4 flex justify-end bg-[#0f172a] border-b border-white/10">
+          <button onclick="copyFsMcr()" class="text-xs flex items-center gap-1 sm font-bold text-secondary hover:text-white"><span class="ms text-[14px]">content_copy</span> Copy Format</button>
+      </div>
+      <div id="fs-mcr-detailed" class="p-5 font-mono min-h-[120px] text-[13px] text-[#e2e8f0] bg-[#0f172a]"></div>
+      <div id="fs-mcr-short" class="hidden p-5 font-mono min-h-[120px] text-[13px] text-[#e2e8f0] bg-[#0f172a]"></div>
+    </div>
+    <!-- V13: Asset Comments Section (linked to tickets) -->
+    <div id="fs-comments-section" class="mt-6 rounded-2xl border border-ov/30 bg-scl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-sm flex items-center gap-2"><span class="ms text-primary text-[18px]">forum</span>Comments &amp; Tickets</h3>
+        <button onclick="nav('tickets')" class="text-xs font-bold text-primary flex items-center gap-1"><span class="ms text-[14px]">open_in_new</span>All Tickets</button>
+      </div>
+      <div id="fs-comments-list" class="flex flex-col gap-3 mb-4 max-h-[300px] overflow-y-auto"></div>
+      <div class="flex gap-2 items-start">
+        <textarea id="fs-comment-input" class="gi flex-1 resize-none text-sm" rows="2" placeholder="Leave a comment... Use @name to mention someone"></textarea>
+        <div class="flex flex-col gap-1.5">
+          <select id="fs-comment-visibility" class="sel w-auto text-xs"><option value="everyone">Everyone</option><option value="personal">Personal</option></select>
+          <button onclick="submitFsComment()" class="btn-primary text-xs px-3 py-1.5 whitespace-nowrap"><span class="ms text-[13px]">send</span> Send</button>
+        </div>
+      </div>
+      <p class="text-[9px] text-secondary mt-2">Personal comments visible only to sender and mentioned user.</p>
+    </div>
+  </div>
+</div>
+<textarea id="fs-mcr-raw-short" style="display:none"></textarea>
+<textarea id="fs-mcr-raw-detailed" style="display:none"></textarea>
+
+<div id="app">
+  <div id="boot-loader" style="position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--c-bg,#f8fafc);transition:opacity .5s">
+    <img src="https://logosandtypes.com/wp-content/uploads/2020/08/Telemundo.png" alt="Telemundo" style="height:48px;width:auto;object-fit:contain;animation:breath 2.2s ease-in-out infinite;">
+    <style>@keyframes breath{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}</style>
+  </div>
+  <div id="screen-login">
+    <div class="w-full max-w-[380px] bg-scl border border-ov/40 rounded-[24px] p-9 shadow-2xl relative overflow-hidden">
+      <div class="absolute top-0 left-0 w-full h-1" id="login-accent-bar" style="background:linear-gradient(90deg,var(--c-primary),#7c3aed)"></div>
+      <div class="flex flex-col items-center mb-8">
+        <img src="https://logosandtypes.com/wp-content/uploads/2020/08/Telemundo.png" alt="Telemundo" class="h-10 w-auto mb-5 object-contain">
+        <h1 id="auth-h" class="font-black text-[24px] tracking-tight text-on-surface">Segmentor</h1>
+        <p id="auth-s" class="text-xs text-secondary mt-1 font-medium">Enterprise Broadcast Pipeline</p>
+      </div>
+      <form id="lform" onsubmit="handleUserLogin(event)" style="display:flex;flex-direction:column;gap:16px">
+        <input id="l-em" type="email" placeholder="Work Email Address" required class="inp w-full" autocomplete="email">
+        <div class="relative"><input id="l-pw" type="password" placeholder="Password" required class="inp w-full pr-10"><button type="button" onclick="togglePasswordVisibility('l-pw',this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-secondary sm hover:text-on-surface"><span class="ms text-[18px]">visibility</span></button></div>
+        <div class="flex justify-end -mt-2"><a href="javascript:void(0)" onclick="handleForgotPassword()" class="text-xs text-primary font-bold hover:underline">Forgot Password?</a></div>
+        <button id="l-btn" type="submit" class="btn-primary w-full mt-2 py-3 text-[15px]">Sign In</button>
+        <p class="text-center text-xs text-secondary mt-1">New user? <a href="javascript:void(0)" onclick="toggleAuthScreens('signup')" class="text-primary font-bold hover:underline">Sign Up</a></p>
+      </form>
+      <form id="sform" onsubmit="handleUserSignup(event)" style="display:none;flex-direction:column;gap:16px">
+        <input id="s-em" type="email" placeholder="Work Email Address" required class="inp w-full">
+        <input id="s-nm" type="text" placeholder="Full Name" required class="inp w-full">
+        <input id="s-pw" type="password" placeholder="Create Password" required class="inp w-full">
+        <button id="s-btn" type="submit" class="btn-primary w-full mt-2 py-3 text-[15px]">Sign Up</button>
+        <p class="text-center text-xs text-secondary mt-1">Have an account? <a href="javascript:void(0)" onclick="toggleAuthScreens('login')" class="text-primary font-bold hover:underline">Sign In</a></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-main">
+    <div id="sb-bd" onclick="closeSidebar()"></div>
+    <nav id="sidebar" class="bg-scl py-5 border-r border-ov/50 shadow-sm relative">
+      <div class="flex items-center gap-3 px-5 mb-8">
+        <img src="https://logosandtypes.com/wp-content/uploads/2020/08/Telemundo.png" alt="Logo" class="sb-logo h-6 w-auto object-contain flex-shrink-0">
+        <h1 class="sbrand font-black text-on-surface tracking-tight text-[18px]">Segmentor</h1>
+      </div>
+      <div class="flex flex-col gap-1 px-3 flex-1">
+        <button onclick="nav('dashboard')" id="nb-dashboard" class="nav-btn ripple-host"><span class="ms text-[20px] fill">grid_view</span><span class="sbl">Dashboard</span></button>
+        <button onclick="nav('schedule')"  id="nb-schedule"  class="nav-btn ripple-host"><span class="ms text-[20px]">calendar_month</span><span class="sbl">Schedule</span></button>
+        <button onclick="nav('assets')"    id="nb-assets"    class="nav-btn ripple-host"><span class="ms text-[20px]">inventory_2</span><span class="sbl">Assets Library</span></button>
+        <button onclick="nav('editor')"    id="nb-editor"     class="nav-btn ripple-host"><span class="ms text-[20px]">edit_square</span><span class="sbl">Segment Editor</span></button>
+        <button onclick="nav('tickets')"   id="nb-tickets"    class="nav-btn ripple-host"><span class="ms text-[20px]">confirmation_number</span><span class="sbl">Tickets</span></button>
+        <button onclick="nav('manual')"    id="nb-manual"     class="nav-btn ripple-host"><span class="ms text-[20px]">menu_book</span><span class="sbl">Manual</span></button>
+        <button onclick="nav('billing')"   id="nb-billing"    class="nav-btn ripple-host"><span class="ms text-[20px]">receipt_long</span><span class="sbl">Billing Info</span></button>
+      </div>
+      <div class="px-4 mt-auto pt-4 flex flex-col gap-4">
+        <button id="new-a-btn" onclick="openNewAsset()" class="w-full btn-primary py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 ripple-host"><span class="ms text-[18px]">add</span><span class="btn-lbl sbl">New Asset</span></button>
+        <div class="h-px mx-1 bg-ov/30"></div>
+        <div class="sb-urow flex items-center px-1 py-0.5">
+          <div class="flex items-center gap-2.5 cursor-pointer hover:opacity-80 sm min-w-0 flex-1 profile-click" onclick="openProfileModal()">
+            <div id="sb-av" class="w-8 h-8 rounded-full bg-pf text-primary flex items-center justify-center font-bold text-sm flex-shrink-0 border border-primary/20 bg-cover bg-center" style="line-height:1">U</div>
+            <div class="min-w-0 flex flex-col justify-center autosave-wrap" style="line-height:1.2">
+              <span id="sb-nm" class="sb-uname text-xs font-bold text-on-surface truncate block" style="max-width:90px">User</span>
+              <span id="role-badge-header" class="role-badge role-viewer" style="display:none"></span>
+              <span id="autosave-badge" class="text-[9px] text-primary opacity-0 sb-uname font-mono leading-none">saved just now</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="requestConfirmation('Log out?','Are you sure you want to log out?',processLogout,'Logout','logout')" class="logout-btn w-8 h-8 rounded-lg hover:bg-ec flex items-center justify-center sm text-secondary hover:text-error" title="Log Out"><span class="ms text-[18px]">logout</span></button>
+          </div>
+        </div>
+        <a href="admin.html" target="_blank" id="admin-panel-link" class="flex items-center gap-2 px-2 py-2 text-[10px] font-bold text-secondary hover:text-primary sm rounded-lg no-underline" title="Admin Panel (local only)" style="display:none"><span class="ms text-[14px]">admin_panel_settings</span><span class="sbl">Admin Panel</span></a>
+      </div>
+    </nav>
+    
+    <div id="mc">
+      <header id="hdr" class="justify-between">
+        <div class="flex items-center gap-4">
+            <button class="hbg w-10 h-10 rounded-xl hover:bg-sc flex items-center justify-center sm text-secondary" onclick="toggleSidebarDesktop()" title="Toggle sidebar"><span class="ms text-[22px]" id="hamburger-icon">menu</span></button>
+            <button onclick="openModal('m-search');setTimeout(()=>document.getElementById('qsearch').focus(),80)" class="flex items-center gap-2 w-[260px] lg:w-[360px] h-10 px-4 text-sm text-secondary bg-sc rounded-full sm hover:bg-scl border border-ov/50">
+              <span class="ms text-[18px]">search</span><span class="flex-1 text-left">Search assets&hellip;</span>
+              <kbd class="text-[10px] font-bold px-2 py-0.5 rounded border border-ov/40 font-mono bg-scl hidden sm:block shadow-sm">Ctrl K</kbd>
+            </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="hidden md:flex items-center gap-3 bg-sc px-3 py-1 rounded-full border border-ov/30 shadow-inner">
+             <div class="flex flex-col items-center leading-tight">
+               <span class="text-[8px] text-secondary font-bold font-mono">IST</span>
+               <span id="clock-ist" class="font-mono font-bold text-[12px] text-on-surface">--:--:--</span>
+             </div>
+             <div class="w-px h-4 bg-ov/50"></div>
+             <div class="flex flex-col items-center leading-tight">
+               <span class="text-[8px] text-secondary font-bold font-mono">EDT/EST</span>
+               <span id="clock-edt" class="font-mono font-bold text-[12px] text-primary">--:--:--</span>
+             </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="openModal('m-shortcuts')" class="w-8 h-8 rounded-lg hover:bg-sc flex items-center justify-center sm text-secondary hover:text-primary" title="Shortcuts (?)"><span class="ms text-[18px]">keyboard</span></button>
+            <button onclick="openModal('m-theme')" class="w-8 h-8 rounded-lg hover:bg-sc flex items-center justify-center sm text-secondary hover:text-primary" title="Theme"><span class="ms text-[18px]">palette</span></button>
+            <button onclick="openModal('m-about')" class="w-8 h-8 rounded-lg hover:bg-sc flex items-center justify-center sm text-secondary hover:text-primary" title="About"><span class="ms text-[18px]">info</span></button>
+          </div>
+          <button onclick="openModal('m-notif');fetchNotifications()" class="relative w-9 h-9 rounded-xl border border-ov/50 bg-scl flex items-center justify-center text-secondary hover:text-primary hover:border-primary sm shadow-sm ripple-host" title="Notifications">
+            <span class="ms text-[18px]">notifications</span>
+            <span id="notif-badge" class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-error rounded-full hidden z-10 border-2 border-scl" style="box-shadow:0 0 0 1px var(--c-error)"></span>
+          </button>
+          <button onclick="loadAllSegments()" class="w-9 h-9 rounded-xl border border-ov/50 bg-scl flex items-center justify-center text-secondary hover:text-primary hover:border-primary sm shadow-sm ripple-host" title="Sync DB"><span class="ms text-[18px]">sync</span></button>
+        </div>
+      </header>
+      
+      <div id="vwrap">
+
+        <div id="vp-dashboard" class="vp on">
+          <div class="p-5 lg:p-8 pb-10">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+              <div>
+                  <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Dashboard</h1>
+                  <p class="text-secondary text-sm mt-1"><span id="dash-count" class="text-primary font-medium"></span></p>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <select id="d-yr" onchange="renderDash()" class="sel w-auto"><option value="All">All Years</option></select>
+                <select id="d-mo" onchange="renderDash()" class="sel w-auto"><option value="All">All Months</option></select>
+                <button onclick="document.getElementById('d-yr').value='All';document.getElementById('d-mo').value='All';renderDash()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Clear</button>
+                <div class="flex bg-scl border border-ov rounded-xl p-1 shadow-sm">
+                  <button onclick="setLay('grid')" id="btn-g" class="p-1.5 rounded-lg bg-sc text-primary sm ripple-host"><span class="ms text-[18px]">grid_view</span></button>
+                  <button onclick="setLay('list')" id="btn-l" class="p-1.5 rounded-lg text-secondary hover:text-on-surface sm ripple-host"><span class="ms text-[18px]">view_list</span></button>
+                </div>
+                <button onclick="loadAllSegments()" class="w-10 h-10 border border-ov rounded-xl flex items-center justify-center text-secondary hover:text-primary hover:border-primary sm bg-scl shadow-sm ripple-host"><span class="ms text-[20px]">refresh</span></button>
+              </div>
+            </div>
+            <div id="dash-widgets" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6"></div>
+            <div id="dash-live-now" class="mb-6" style="display:none">
+              <h2 class="font-bold text-[15px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[18px] text-error" style="animation:pulse 2s infinite">fiber_manual_record</span>Live Now</h2>
+              <div id="dash-live-now-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+            <div id="dgrid" class="lg-grid"></div>
+            <div id="dash-upcoming-events" class="mt-8" style="display:none">
+              <h2 class="font-bold text-[16px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[20px] text-primary">upcoming</span>Upcoming Events</h2>
+              <div id="dash-upcoming-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+            <div id="dash-recent-activity" class="mt-8" style="display:none">
+              <h2 class="font-bold text-[16px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[20px] text-primary">history</span>Recent Activity</h2>
+              <div id="dash-activity-list" class="space-y-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="vp-schedule" class="vp">
+          <div class="p-5 lg:p-8 pb-10">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+              <div>
+                <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Schedule</h1>
+                <p class="text-secondary text-sm mt-1">Manage upcoming events from Google Sheets. Assign users and launch assets.</p>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="date" id="schedule-date-filter" class="sel text-sm py-2 px-3 w-[160px]">
+                <button onclick="filterDay(-1)" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">chevron_left</span> Yesterday</button>
+                <button onclick="clearScheduleFilter()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">today</span> Today</button>
+                <button onclick="filterDay(1)" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1">Tomorrow <span class="ms text-[14px]">chevron_right</span></button>
+                <button onclick="syncScheduleFromSheet()" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">sync</span>Sync from Sheet</button>
+              </div>
+            </div>
+            <div id="dash-upcoming-section" class="mb-6">
+              <h2 class="font-bold text-[16px] text-on-surface mb-1 flex items-center gap-2"><span class="ms text-[20px] text-primary">upcoming</span>Upcoming Events</h2>
+              <div id="schedule-stats" class="text-xs text-secondary mb-3"></div>
+              <div id="schedule-upcoming-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+            <div class="card ts overflow-x-auto">
+              <table class="w-full text-left" style="min-width:1000px">
+                <thead class="border-b border-ov/50 text-[11px] text-secondary uppercase tracking-wider font-bold font-mono bg-sclo">
+                  <tr>
+                    <th class="py-3 px-4">#</th>
+                    <th class="py-3 px-4">Date</th>
+                    <th class="py-3 px-4">Title</th>
+                    <th class="py-3 px-4">Asset ID</th>
+                    <th class="py-3 px-4">S/E</th>
+                    <th class="py-3 px-4 text-center">Seg</th>
+                    <th class="py-3 px-4">Time (IST)</th>
+                    <th class="py-3 px-4">Type</th>
+                    <th class="py-3 px-4">Assigned To</th>
+                    <th class="py-3 px-4 text-center">Status</th>
+                    <th class="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="schedule-tbody" class="divide-y divide-ov/30 text-sm bg-scl"></tbody>
+              </table>
+              <div id="schedule-empty" class="text-center py-12 text-secondary">
+                <span class="ms text-[40px] block mb-2">calendar_month</span>
+                No schedule entries yet. Click <strong>Sync from Sheet</strong> to load data.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="vp-assets" class="vp">
+          <div class="p-5 lg:p-8 pb-10">
+            <div class="flex flex-wrap justify-between items-end gap-4 mb-8">
+              <div>
+                  <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Assets Catalog</h1>
+                  <p class="text-secondary text-sm mt-1" id="cat-cnt">0 total.</p>
+              </div>
+              <div class="flex gap-3 flex-wrap items-center">
+                <select id="a-yr" onchange="renderAssets()" class="sel w-auto"><option value="All">All Years</option></select>
+                <select id="a-mo" onchange="renderAssets()" class="sel w-auto"><option value="All">All Months</option></select>
+                <button onclick="document.getElementById('a-yr').value='All';document.getElementById('a-mo').value='All';renderAssets()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Clear</button>
+                <select id="export-fmt-select" class="sel w-auto text-xs"><option value="csv">CSV</option><option value="xml">XML</option><option value="json">JSON</option></select>
+                <button onclick="exportAssets()" class="btn-primary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">download</span> Export</button>
+              </div>
+            </div>
+            <div id="assets-container" class="space-y-3"></div>
+          </div>
+        </div>
+
+        <div id="vp-editor" class="vp">
+          <div id="editor-empty" class="flex flex-col items-center justify-center text-center min-h-[60vh] px-6" style="display:none">
+            <div class="w-24 h-24 rounded-3xl bg-sc flex items-center justify-center mb-6">
+              <span class="ms text-[48px] text-secondary">edit_note</span>
+            </div>
+            <p class="font-bold text-[20px] text-on-surface mb-2">Select or Create an Asset</p>
+            <p class="text-secondary text-sm max-w-md mb-6">Choose an asset from the Dashboard or Asset List, or create a new one to begin editing.</p>
+            <div class="flex gap-3">
+              <button onclick="nav('dashboard')" class="btn-secondary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">dashboard</span>Dashboard</button>
+              <button onclick="openNewAsset()" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">add</span>New Asset</button>
+            </div>
+          </div>
+          <div class="p-5 lg:p-8 pb-12 max-w-[1400px] mx-auto space-y-6" id="editor-main">
+            <section class="card">
+              <div class="px-6 py-5 border-b border-ov/50 flex flex-wrap justify-between items-center gap-3 bg-sclo">
+                <div class="flex items-center gap-3">
+                    <h2 class="font-bold text-[18px] text-on-surface">Event Metadata</h2>
+                    <div id="unsaved-dot-editor" class="hidden unsaved-dot"></div>
+                </div>
+                <div id="editor-timer" class="hidden text-xs font-bold font-mono flex items-center gap-2 px-3 py-1.5 rounded-lg bg-sclo border border-ov/30"><span class="ms text-[16px] text-primary">timer</span><span id="editor-timer-display">00:00:00</span><span id="editor-timer-user" class="text-secondary text-[10px]"></span></div>
+                <button onclick="saveToSheets()" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">cloud_upload</span> Sync &amp; Save</button>
+                <button onclick="openHandoverModal()" class="btn-secondary flex items-center gap-2 ripple-host"><span class="ms text-[18px]">forward</span><span class="hidden sm:inline">Handover</span></button>
+                <button onclick="endShow()" class="text-xs font-bold flex items-center gap-1.5 sm px-4 py-2.5 rounded-xl text-error hover:bg-ec border border-transparent hover:border-error/20 ripple-host"><span class="ms text-[18px]">stop_circle</span><span class="hidden sm:inline">End Show</span></button>
+              </div>
+              <div class="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-5 bg-scl">
+                <div><label class="lbl">Date</label><input id="metaDate" type="date" class="inp"></div>
+                <div><label class="lbl">Asset ID</label><input id="metaAssetId" type="text" class="inp font-mono uppercase" placeholder="TDA&hellip;" oninput="markUnsaved()"></div>
+                <div class="col-span-2"><label class="lbl">Episode Title</label><input id="metaTitle" type="text" class="inp" placeholder="e.g. Premier League Final" oninput="markUnsaved()"></div>
+                <div><label class="lbl">Type <span id="meta-type-schedule-badge" class="text-[9px] text-primary font-mono" style="display:none"></span></label><select id="metaType" class="sel w-full"><option>Record</option><option>Live</option></select></div>
+                <div><label class="lbl text-primary">Exp. Segments</label><input id="metaExpSeg" type="number" value="4" oninput="calcGrid()" class="inp inp-colored font-bold"></div>
+                <div class="hidden lg:block"><label class="lbl text-primary">Exp. Duration</label><input id="metaExpDur" type="text" value="00:30:00" oninput="fmtIn(this);calcGrid();" class="inp inp-colored font-bold font-mono"></div>
+                <div class="col-span-2 lg:col-span-4" id="countdown-section" style="display:none">
+                  <label class="lbl text-primary" id="countdown-label">Countdown to next event</label>
+                  <div class="flex items-center gap-4 px-4 py-2 rounded-xl bg-sclo border border-ov/30">
+                    <span class="ms text-[22px] text-primary" id="countdown-icon">timer</span>
+                    <div>
+                      <span id="countdown-display" class="font-black font-mono text-[22px] text-primary">--:--:--</span>
+                      <span id="countdown-event-name" class="text-xs text-secondary ml-2"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5 bg-scl border-t border-ov/30">
+                <div><label class="lbl text-primary">Breaks</label><input id="metaBreakCount" type="number" value="0" class="inp inp-colored font-bold" readonly><span class="text-[9px] text-secondary">auto-calculated</span></div>
+                <div><label class="lbl text-primary">Break Dur</label><input id="metaBreakDur" type="text" value="00:00:00" oninput="fmtIn(this);calcBreaks();markUnsaved()" class="inp inp-colored font-bold font-mono"></div>
+                <div><label class="lbl text-primary">Net Duration</label><span id="metaNetDur" class="block text-sm font-bold font-mono pt-2 text-on-surface">00:00:00</span></div>
+              </div>
+              <div id="editor-thumb-row" class="px-6 pb-6 bg-scl" style="display:none">
+                <label class="lbl">Thumbnail</label>
+                <div id="editor-thumb" class="w-full h-32 rounded-xl overflow-hidden border border-ov/30 shadow-sm" style="background:linear-gradient(135deg,#667eea,#764ba2)"></div>
+              </div>
+            </section>
+            
+            <section class="card">
+              <div class="px-6 py-5 border-b border-ov/50 flex flex-wrap justify-between items-center gap-2 bg-sclo">
+                <h2 class="font-bold text-[18px] text-on-surface">Timeline Editor</h2>
+                <div class="flex items-center gap-3">
+                  <span id="seg-count-badge" class="text-xs font-bold text-primary bg-pf px-3 py-1 rounded-md font-mono border border-primary/20">0 segments</span>
+                  <span class="text-[11px] text-secondary font-mono hidden sm:block">Auto-calculates on input</span>
+                </div>
+              </div>
+              <div class="ts bg-scl">
+                <table class="w-full text-left" style="min-width:1050px" id="editorTable">
+                  <thead class="border-b border-ov/50 text-[10px] text-secondary font-bold uppercase tracking-wider font-mono bg-sclo/50">
+                    <tr>
+                      <th class="py-3 px-2 w-8"></th>
+                      <th class="py-3 px-3 w-16">Seg</th>
+                      <th class="py-3 px-2 w-28">TC In</th>
+                      <th class="py-3 px-2 w-28">TC Out</th>
+                      <th class="py-3 px-2 w-48 text-error">Anomalies / Glitches</th>
+                      <th class="py-3 px-2 w-24 text-center text-error">G&middot;Dur</th>
+                      <th class="py-3 px-2 w-36">Breaks</th>
+                      <th class="py-3 px-2">Comments</th>
+                      <th class="py-3 px-4 w-28 text-right text-primary">Duration</th>
+                      <th class="py-3 px-3 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="segmentGrid" class="text-sm divide-y divide-ov/20"></tbody>
+                </table>
+              </div>
+              <div class="p-5 border-t border-ov/50 flex flex-wrap gap-3 items-center bg-sclo">
+                <button onclick="addSeg()" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">add</span> Add Segment</button>
+                <button onclick="addSubSeg()" class="btn-secondary flex items-center gap-2 ripple-host"><span class="ms text-[18px]">subdirectory_arrow_right</span> Sub-Segment</button>
+                <button onclick="clearEditor()" class="ml-auto text-secondary hover:text-error text-xs font-bold flex items-center gap-1.5 sm px-4 py-2.5 rounded-xl hover:bg-ec border border-transparent hover:border-error/20 ripple-host"><span class="ms text-[18px]">delete_sweep</span><span class="hidden sm:inline">Clear All</span></button>
+              </div>
+            </section>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <section class="card relative overflow-hidden bg-scl">
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-primary"></div>
+                <div class="p-6">
+                  <h2 class="font-bold text-[18px] mb-5 text-on-surface">Precision Estimation</h2>
+                  <div class="flex justify-between items-center pb-3 border-b border-dashed border-ov/50"><span class="text-sm text-secondary font-medium">Logged Duration</span><span id="sumActDur" class="font-bold font-mono text-[16px] text-on-surface">00:00:00</span></div>
+                  <div class="flex justify-between items-center py-3 border-b border-dashed border-ov/50"><span class="text-sm text-secondary font-medium">Expected Duration</span><span id="sumExpDur" class="font-bold font-mono text-[16px] text-on-surface">00:30:00</span></div>
+                  <div class="mt-5 p-5 rounded-2xl bg-pf border border-primary/20">
+                    <div class="text-[11px] font-black uppercase tracking-widest mb-1.5 text-primary">Ideal Next Segment</div>
+                    <div class="flex justify-between items-end"><span id="sumSegMath" class="text-xs text-secondary font-medium">0 remaining</span><span id="idealSeg" class="font-black text-primary font-mono text-[26px] leading-none">00:00:00</span></div>
+                  </div>
+                </div>
+              </section>
+              <section class="lg:col-span-2 card flex flex-col overflow-hidden relative bg-scl">
+                <div class="absolute top-0 left-0 w-1.5 h-full bg-[#111827]"></div>
+                <div class="px-6 py-5 border-b border-ov/50 flex justify-between items-center bg-sclo">
+                  <h2 class="font-bold text-[18px] text-on-surface">MCR Live Output</h2>
+                  <div class="flex items-center gap-2">
+                    <button onclick="nav('report')" class="text-primary px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-pf sm border border-primary/20 bg-pf shadow-sm ripple-host"><span class="ms text-[16px]">description</span>Full Report Mode</button>
+                  </div>
+                </div>
+                
+                <div class="flex border-b border-white/10 bg-[#0f172a]">
+                    <button onclick="switchTab('detailed')" id="tab-detailed" class="tab-btn active flex-1">Detailed Log</button>
+                    <button onclick="switchTab('short')" id="tab-short" class="tab-btn flex-1 border-l border-white/10">Short Format</button>
+                </div>
+                <div class="flex justify-end bg-[#0f172a] pt-3 pr-4">
+                    <button onclick="copyEditorMcr()" class="text-xs flex items-center gap-1 sm font-bold text-secondary hover:text-white ripple-host"><span class="ms text-[14px]">content_copy</span> Copy Format</button>
+                </div>
+                
+                <div id="mcrOut-detailed" class="p-5 flex-1 overflow-y-auto font-mono text-[13.5px] leading-relaxed min-h-[160px] bg-[#0f172a] text-[#e2e8f0]"></div>
+                <div id="mcrOut-short" class="hidden p-5 flex-1 overflow-y-auto font-mono text-[13.5px] leading-relaxed min-h-[160px] bg-[#0f172a] text-[#e2e8f0]"></div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div id="vp-report" class="vp" style="background:var(--c-bg)">
+          <div class="p-5 lg:p-8 pb-12 max-w-[1000px] mx-auto space-y-6">
+            <header class="flex flex-wrap justify-between items-center gap-3 pb-2">
+              <h2 class="font-black tracking-tight text-[26px] text-on-surface">Final Asset Report</h2>
+              <div class="flex gap-2 flex-wrap">
+                <button onclick="nav('editor')" class="btn-secondary flex items-center gap-2 ripple-host"><span class="ms text-[18px]">arrow_back</span>Back</button>
+                <button onclick="copyRptMcr('short')" class="btn-secondary flex items-center gap-2 ripple-host"><span class="ms text-[18px]">content_copy</span>Copy Short</button>
+                <button onclick="copyRptMcr('detailed')" class="btn-primary flex items-center gap-2 ripple-host px-5"><span class="ms text-[18px]">content_copy</span>Copy Detailed</button>
+              </div>
+            </header>
+            
+            <div class="card p-6 flex flex-wrap justify-between items-center gap-4 bg-scl">
+              <div class="flex items-center gap-4">
+                <div id="rpt-thumb" class="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border border-ov/30 shadow-sm" style="background:linear-gradient(135deg,#667eea,#764ba2)"></div>
+                <div><h3 id="rptId" class="font-bold text-[22px] mb-1 text-on-surface">TDATEM&hellip;</h3><p id="rptTitle" class="text-sm font-bold text-secondary">Title</p></div>
+              </div>
+              <div id="rptType" class="bg-pf text-primary px-4 py-2 rounded-xl text-[13px] font-mono uppercase font-bold tracking-wider border border-primary/20">RECORD</div>
+            </div>
+            
+            <div id="rpt-owner-avatars" class="flex items-center gap-2 px-6 py-2" style="display:none">
+              <span class="text-xs font-medium text-secondary">Owners:</span>
+              <div id="rpt-owner-avatars-list" class="flex items-center"></div>
+            </div>
+            <div id="rpt-transfer-history" class="flex items-center gap-3 px-6 py-1 text-xs font-medium text-secondary" style="display:none">
+              <span class="ms text-[14px] text-ov">timeline</span>
+              <span id="rpt-transfer-list" class="text-on-surface"></span>
+            </div>
+            <div id="rpt-handover-bar" class="flex items-center gap-4 px-6 py-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs font-medium text-secondary" style="display:none">
+              <span class="flex items-center gap-1"><span class="ms text-[14px] text-amber-500">forward</span> Handed over by <strong id="rpt-handover-by" class="text-amber-800"></strong></span>
+              <span class="text-amber-300">|</span>
+              <span>To: <strong id="rpt-handover-to" class="text-amber-800"></strong></span>
+              <span class="text-amber-300">|</span>
+              <span id="rpt-handover-time" class="font-mono text-amber-700"></span>
+            </div>
+            <div id="rpt-locked-by" class="text-xs text-secondary px-6 py-2" style="display:none"></div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div class="card overflow-hidden relative bg-scl">
+                  <div class="absolute top-0 left-0 w-1.5 h-full bg-primary"></div>
+                  <div class="p-5 border-b border-ov/50 bg-sclo flex justify-between">
+                      <h4 class="text-[12px] uppercase font-mono font-bold text-secondary tracking-wider">Final Output Duration</h4>
+                      <span id="rptExpectedBadge" class="text-[10px] bg-pf text-primary px-2 py-0.5 rounded font-mono font-bold">Expected: 00:30:00</span>
+                  </div>
+                  <div class="p-8 flex justify-between items-center">
+                      <p id="rptDur" class="text-[44px] font-black text-primary tracking-tight font-mono leading-none">00:00:00</p>
+                  </div>
+                  <div id="rpt-timer-section" class="hidden p-4 border-t border-ov/30">
+                    <div class="text-[10px] uppercase font-mono font-bold text-secondary tracking-wider mb-2">Working Time</div>
+                    <div id="rpt-timer-users" class="flex flex-wrap gap-2"></div>
+                  </div>
+                  <div id="rptStatusPanel" class="rounded-3xl p-6 flex flex-col justify-center items-center text-center shadow-sm" style="background:#f0fdf4;border:1.5px solid #bbf7d0">
+                  <span id="rptStatusIcon" class="ms text-[52px] mb-3" style="color:#16a34a">verified_user</span>
+                  <span id="rptStatusText" style="color:#166534" class="font-bold text-[18px]">Perfect Duration</span>
+                  <span id="rptStatusSub" style="color:#15803d" class="text-[15px] mt-1">Timeline matches expected time.</span>
+              </div>
+            </div>
+
+            <div class="card overflow-hidden bg-scl">
+              <div class="p-5 border-b border-ov/50 bg-sclo flex justify-between items-center">
+                  <h4 class="text-[12px] uppercase font-mono font-bold text-error tracking-wider flex items-center gap-1.5"><span class="ms text-[16px]">warning</span> Technical Anomalies Log</h4>
+                  <span id="rptGlitchCount" class="bg-ec text-error px-2 py-1 rounded text-xs font-bold font-mono">0 Glitches</span>
+              </div>
+              <div class="ts">
+                  <table class="w-full text-left" style="min-width:600px">
+                      <thead class="bg-scl border-b border-ov/30 text-[10px] text-secondary uppercase font-mono tracking-wider">
+                          <tr><th class="p-3 pl-5">Segment</th><th class="p-3">Glitch Type</th><th class="p-3">Time IN (EDT)</th><th class="p-3">Time OUT (EDT)</th><th class="p-3 text-error">Lost Dur</th></tr>
+                      </thead>
+                      <tbody id="rptGlitchTbody" class="divide-y divide-ov/20 text-sm bg-scl">
+                          <tr><td colspan="5" class="p-5 text-center text-secondary font-medium">No glitches detected.</td></tr>
+                      </tbody>
+                  </table>
+              </div>
+            </div>
+
+            <div class="card overflow-hidden bg-scl">
+              <div class="flex border-b border-white/10 bg-[#0f172a]">
+                  <button onclick="switchRptTab('detailed')" id="rpt-tab-detailed" class="tab-btn active flex-1">Detailed MCR Log</button>
+                  <button onclick="switchRptTab('short')" id="rpt-tab-short" class="tab-btn flex-1 border-l border-white/10">Short Format</button>
+              </div>
+              <div id="rptMcr-detailed" class="p-6 font-mono text-[#e2e8f0] text-[14px] leading-relaxed min-h-[150px] bg-[#0f172a]"></div>
+              <div id="rptMcr-short" class="hidden p-6 font-mono text-[#e2e8f0] text-[14px] leading-relaxed min-h-[150px] bg-[#0f172a]"></div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <div id="vp-tickets" class="vp">
+          <div class="p-5 lg:p-8 pb-10">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+              <div><h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Tickets</h1><p class="text-secondary text-sm mt-1">Issue tracking with @mentions, comments, and resolution logs.</p></div>
+              <div class="flex items-center gap-3">
+                <input id="vp-ticket-search" type="text" class="gi w-48" placeholder="Search tickets" oninput="renderTicketsView()">
+                <select id="vp-ticket-filter" class="sel w-auto" onchange="renderTicketsView()">
+                  <option value="all">All</option>
+                  <option value="open">Open</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <button onclick="openNewTicketModal()" class="btn-primary flex items-center gap-2 px-5"><span class="ms text-[18px]">add</span> New Ticket</button>
+              </div>
+            </div>
+            <table class="w-full text-left">
+              <thead class="text-[10px] text-secondary uppercase font-bold font-mono border-b border-ov/30">
+                <tr><th class="p-3 w-28">ID</th><th class="p-3">Subject</th><th class="p-3 w-20">Visibility</th><th class="p-3 w-28">Created By</th><th class="p-3 w-20">Status</th><th class="p-3 w-24 text-right">Date</th></tr>
+              </thead>
+              <tbody id="ttbody" class="divide-y divide-ov/20 text-sm"></tbody>
+            </table>
+            <div id="tickets-empty" class="text-center py-16 text-secondary" style="display:none"><span class="ms text-[48px] block mb-3">confirmation_number</span><p class="font-bold text-[16px] mb-1">No tickets found</p><p class="text-sm">Click "New Ticket" to create one.</p></div>
+          </div>
+        </div>
+
+        <div id="vp-manual" class="vp">
+          <div class="p-5 lg:p-8 pb-10 max-w-5xl mx-auto">
+            <div class="flex items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Manual</h1>
+                <p class="text-secondary text-sm mt-1">Complete guide to the Segmentor Enterprise Broadcast Pipeline.</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <input id="manual-search" type="text" placeholder="Search topics&hellip;" class="gi w-52" oninput="filterManualTopics(this.value)">
+              </div>
+            </div>
+            <div class="flex gap-6">
+              <div id="manual-toc" class="w-64 flex-shrink-0 hidden lg:block">
+                <div class="card bg-scl p-3 sticky top-6 max-h-[75vh] overflow-y-auto" style="position:sticky;top:24px">
+                  <div class="text-[10px] font-bold text-secondary uppercase tracking-wider px-2 py-2">Topics</div>
+                  <div id="manual-toc-list" class="flex flex-col gap-0.5"></div>
+                </div>
+              </div>
+              <div id="manual-content" class="flex-1 min-w-0 flex flex-col gap-6"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="vp-billing" class="vp">
+          <div class="p-5 lg:p-8 pb-10">
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+              <div>
+                <h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Billing Info</h1>
+                <p class="text-secondary text-sm mt-1">Asset durations for billing &mdash; overtime vs actual.</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-3">
+                <select id="b-yr" onchange="renderBillingView()" class="sel w-auto"><option value="All">All Years</option></select>
+                <select id="b-mo" onchange="renderBillingView()" class="sel w-auto"><option value="All">All Months</option></select>
+                <input type="date" id="b-date-from" onchange="renderBillingView()" class="sel text-sm py-2 px-3 w-[150px]" title="From date">
+                <input type="date" id="b-date-to" onchange="renderBillingView()" class="sel text-sm py-2 px-3 w-[150px]" title="To date">
+                <button onclick="document.getElementById('b-yr').value='All';document.getElementById('b-mo').value='All';document.getElementById('b-date-from').value='';document.getElementById('b-date-to').value='';renderBillingView()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">filter_alt_off</span> Clear</button>
+                <select id="export-billing-fmt" class="sel w-auto text-xs"><option value="csv">CSV</option><option value="xml">XML</option><option value="xlsx">XLSX</option><option value="json">JSON</option></select>
+                <button onclick="exportBilling()" class="btn-primary text-xs px-3 py-2 flex items-center gap-1"><span class="ms text-[14px]">download</span> Export</button>
+              </div>
+            </div>
+            <div id="billing-container"></div>
+          </div>
+        </div>
+
+      </div> <div id="bnav">
+        <button onclick="nav('dashboard')" id="bn-dashboard" class="bn"><span class="ms">grid_view</span><span>Home</span></button>
+        <button onclick="nav('schedule')"  id="bn-schedule"  class="bn"><span class="ms">calendar_month</span><span>Schedule</span></button>
+        <button onclick="nav('assets')"    id="bn-assets"    class="bn"><span class="ms">inventory_2</span><span>Assets</span></button>
+        <button onclick="nav('editor')"    id="bn-editor"    class="bn"><span class="ms">edit_square</span><span>Editor</span></button>
+        <button onclick="nav('tickets')"   id="bn-tickets"   class="bn"><span class="ms">confirmation_number</span><span>Tickets</span></button>
+        <button onclick="nav('manual')"    id="bn-manual"    class="bn"><span class="ms">menu_book</span><span>Manual</span></button>
+        <button onclick="nav('billing')"   id="bn-billing"   class="bn"><span class="ms">receipt_long</span><span>Billing</span></button>
+        <button onclick="openNewAsset()"                      class="bn"><span class="ms">add_circle</span><span>New</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- V13: Ticket Detail Modal -->
+<div id="m-ticket-detail" class="mw" onclick="if(event.target===this){window._openTicketDetailId=null;closeModal('m-ticket-detail')}">
+  <div class="mb max-w-2xl">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="font-bold text-[19px]">Ticket Detail</h2>
+      <button onclick="window._openTicketDetailId=null;closeModal('m-ticket-detail')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <div id="ticket-detail-content" class="max-h-[70vh] overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- V13: New Ticket Modal -->
+<div id="m-new-ticket" class="mw" onclick="if(event.target===this) closeModal('m-new-ticket')">
+  <div class="mb max-w-lg">
+    <div class="flex justify-between items-center mb-4">
+      <div><h2 class="font-bold text-[19px]">Create New Ticket</h2><p class="text-xs text-secondary">Report an issue or request a change.</p></div>
+      <button onclick="closeModal('m-new-ticket')" class="w-9 h-9 rounded-full hover:bg-sc flex items-center justify-center sm text-secondary"><span class="ms">close</span></button>
+    </div>
+    <form id="new-ticket-form" onsubmit="event.preventDefault();submitNewTicket()">
+      <div class="flex flex-col gap-4">
+        <div><label class="lbl">Subject *</label><input id="nt-subject" type="text" class="gi w-full" placeholder="Brief title" required></div>
+        <div><label class="lbl">Related Asset <span class="text-secondary">(optional)</span></label>
+          <input id="nt-asset-search" type="text" class="gi w-full" placeholder="Search asset by ID or title..." oninput="showAssetSuggestions(this.value)">
+          <div id="nt-asset-suggestions" class="hidden mt-1 border border-ov/30 rounded-lg max-h-[150px] overflow-y-auto bg-scl"></div>
+          <input id="nt-asset-id" type="hidden" value="">
+          <span id="nt-asset-selected" class="text-[10px] text-primary font-bold hidden"></span>
+        </div>
+        <div><label class="lbl">Description</label><textarea id="nt-body" class="gi w-full resize-none" rows="4" placeholder="Describe the issue... Use @name to mention someone"></textarea></div>
+        <div><label class="lbl">TO <span class="text-secondary">(recipient)</span></label>
+          <div class="flex gap-2">
+            <input id="nt-to-search" type="text" class="gi flex-1" placeholder="Search user or type 'Everyone'..." oninput="showToSuggestions(this.value)">
+            <select id="nt-visibility" class="sel w-auto">
+              <option value="personal">Personal</option>
+              <option value="everyone">Everyone</option>
+            </select>
+          </div>
+          <div id="nt-to-suggestions" class="hidden mt-1 border border-ov/30 rounded-lg max-h-[150px] overflow-y-auto bg-scl"></div>
+          <input id="nt-to-email" type="hidden" value="">
+          <span id="nt-to-selected" class="text-[10px] text-primary font-bold hidden"></span>
+        </div>
+        <div><label class="lbl">Images <span class="text-secondary">(optional)</span></label>
+          <input id="nt-images" type="file" accept="image/*" multiple class="gi w-full text-sm" onchange="previewTicketImages(this)">
+          <div id="nt-image-previews" class="flex flex-wrap gap-2 mt-2"></div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick="closeModal('m-new-ticket')" class="flex-1 btn-secondary">Cancel</button>
+          <button type="submit" class="flex-1 btn-primary flex items-center justify-center gap-2"><span class="ms text-[17px]">add</span> Create Ticket</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- JS modules loaded in dependency order -->
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/profile.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/manual.js"></script>
+<script src="js/tickets.js"></script>
+<script src="js/billing.js"></script>
+<script src="js/realtime.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/init.js"></script>
+<script src="js/app.js"></script>
+
+<div id="ctx-menu" class="ctx-menu"></div>
+
+
+
+
+<script id="seg-debugger">
+(function(){
+  var _console = {};
+  ['log','warn','error','info'].forEach(function(m){ _console[m] = console[m]; });
+  var _logs = [], _start = Date.now();
+
+  function ts(){ var d=new Date(); return d.toISOString().replace('T',' ').replace(/\.\d+/,'')+'.'+String(d.getMilliseconds()).padStart(3,'0'); }
+  function push(level, msg, data){
+    var e={t:ts(),level:level,msg:String(msg),data:data||null};
+    _logs.push(e);
+    _console[level==='err'?'error':'log'].call(console,'['+level+']',msg);
+    if(_logs.length>2000)_logs.splice(0,_logs.length-2000);
+  }
+
+  console.log=function(){var a=[].slice.call(arguments);push('log',a.join(' '));_console.log.apply(console,arguments);};
+  console.warn=function(){var a=[].slice.call(arguments);push('warn',a.join(' '));_console.warn.apply(console,arguments);};
+  console.error=function(){var a=[].slice.call(arguments);push('err',a.join(' '));_console.error.apply(console,arguments);};
+  console.info=function(){var a=[].slice.call(arguments);push('info',a.join(' '));_console.info.apply(console,arguments);};
+
+  window.addEventListener('error',function(e){push('err',e.message+' at '+e.filename+':'+e.lineno+':'+e.colno);});
+  window.addEventListener('unhandledrejection',function(e){push('err','Unhandled Promise: '+(e.reason?e.reason.message||String(e.reason):'?'));});
+
+  if(window.nav){
+    var _nav=window.nav;
+    window.nav=function(viewId){
+      push('nav','nav("'+viewId+'")');
+      var targetEl = document.getElementById('vp-'+viewId);
+      if (targetEl) push('nav','  BEFORE: classes:'+targetEl.className+' display:'+getComputedStyle(targetEl).display);
+      else push('err','  vp-'+viewId+' NOT FOUND');
+      try{
+        var r=_nav(viewId);
+        // Check AFTER nav runs
+        if(targetEl){var cs=getComputedStyle(targetEl);var vw=document.getElementById('vwrap');var vws=vw?getComputedStyle(vw):null;push('nav','  AFTER:  classes:'+targetEl.className+' display:'+cs.display+' pos:'+cs.position+' cw:'+cs.width+' ch:'+cs.height+' ow:'+targetEl.offsetWidth+' oh:'+targetEl.offsetHeight+' par:'+(targetEl.parentElement?targetEl.parentElement.id||targetEl.parentElement.tagName:'null')+' vdisp:'+(vws?vws.display:'?')+' rect:'+JSON.stringify(targetEl.getBoundingClientRect()));}
+        return r;
+      }catch(ex){push('err','nav() threw: '+ex.message);throw ex;}
+    };
+  }
+  // Add visual indicator: red border to on views
+  var _obs=new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      if(m.type==='attributes'&&m.attributeName==='class'){
+        var v=m.target;
+        if(v.classList.contains('on'))v.style.outline='3px solid red';
+        else v.style.outline='';
+      }
+    });
+  });
+  document.querySelectorAll('.vp').forEach(function(v){_obs.observe(v,{attributes:true,attributeFilter:['class']});});
+
+  var _RENDERS = {
+    renderManual: function(){
+      var el=document.getElementById('manual-content');
+      push('render','  manual-content: '+(el?'FOUND ('+el.children.length+' children)':'NULL'));
+      if(el) push('render','  manual-content display:'+getComputedStyle(el).display+' visibility:'+getComputedStyle(el).visibility);
+      var toc=document.getElementById('manual-toc-list');
+      push('render','  manual-toc-list: '+(toc?'FOUND':'NULL'));
+      var topics = window.manualTopics;
+      push('render','  manualTopics: '+(topics?'array['+topics.length+']':'UNDEFINED'));
+    },
+    renderTicketsView: function(){
+      var tb=document.getElementById('ttbody');
+      push('render','  ttbody: '+(tb?'FOUND ('+tb.children.length+' children)':'NULL'));
+      if(tb) push('render','  ttbody display:'+getComputedStyle(tb).display);
+      var emp=document.getElementById('tickets-empty');
+      push('render','  tickets-empty: '+(emp?'FOUND display:'+emp.style.display:'NULL'));
+      var cache=window.ticketsCache;
+      push('render','  ticketsCache: '+(cache?'array['+cache.length+']':typeof cache));
+    },
+    renderBillingView: function(){
+      var tb=document.getElementById('bbody');
+      push('render','  bbody: '+(tb?'FOUND ('+tb.children.length+' children)':'NULL'));
+      if(tb) push('render','  bbody display:'+getComputedStyle(tb).display);
+      var grp=window.grpAssets;
+      push('render','  grpAssets: '+(typeof grp==='function'?'FOUND':typeof grp));
+    }
+  };
+
+  setTimeout(function(){
+    Object.keys(_RENDERS).forEach(function(fn){
+      var orig=window[fn];
+      if(typeof orig==='function'){
+        window[fn]=function(){
+          push('render',fn+'() called');
+          if(_RENDERS[fn])_RENDERS[fn]();
+          try{return orig.apply(this,arguments);}catch(ex){push('err',fn+'() threw: '+ex.message);_console.error(ex.stack);}
+        };
+      } else {
+        push('warn','window.'+fn+' is '+typeof orig+' (expected function)');
+      }
+    });
+    push('init','Deep debug ready. Press Ctrl+Shift+L to download log.');
+  },100);
+
+  document.addEventListener('click',function(e){
+    var el=e.target,info=el.tagName;
+    if(el.id)info+='#'+el.id;
+    if(el.className&&typeof el.className==='string')info+='.'+el.className.trim().split(/\s+/).filter(Boolean).slice(0,2).join('.');
+    var oc=el.getAttribute('onclick');if(oc)info+=' [onclick="'+oc.substring(0,60)+'"]';
+    push('click',info);
+  },true);
+
+  push('init','Debug script injected at '+ts());
+
+  window._dumpLogs=function(){
+    var txt='=== SEGMENTOR DEBUG LOG ===\nGenerated: '+new Date().toISOString()+'\nDuration: '+((Date.now()-_start)/1000).toFixed(1)+'s\nEntries: '+_logs.length+'\n==============================\n\n';
+    _logs.forEach(function(e){txt+=e.t+' ['+e.level.toUpperCase()+'] '+e.msg+'\n';});
+    var blob=new Blob([txt],{type:'text/plain'}),url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='seg-debug-'+new Date().toISOString().replace(/[:.]/g,'-')+'.log';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  };
+  document.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(e.key==='L'||e.key==='l')){e.preventDefault();window._dumpLogs();}
+  });
+  setInterval(function(){try{localStorage.setItem('_seg_debug_logs',JSON.stringify(_logs.slice(-500)));}catch(ex){}},10000);
+  window.addEventListener('beforeunload',function(){
+    try{var es=JSON.parse(sessionStorage.getItem('_seg_debug_sessions')||'[]');es.push({time:new Date().toISOString(),count:_logs.length});if(es.length>5)es=es.slice(-5);sessionStorage.setItem('_seg_debug_sessions',JSON.stringify(es));}catch(ex){}
+  });
+})();
+</script>
+
+</body>
+</html>

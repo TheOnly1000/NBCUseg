@@ -800,6 +800,7 @@ function updateCountdowns() {
         if (shouldWarn5min(entry)) {
             playNotifSound();
             var msg = "Schedule alert: \"" + (entry.episode_title || entry.series_name || "Event") + "\" starts in 5 minutes!";
+            var title = (entry.episode_title || entry.series_name || "Event") + " starts in 5 min";
             var aid = entry.launched_asset_id || entry.sheet_asset_id || "";
             if (entry.assigned_to) {
                 // Notify assigned user
@@ -810,6 +811,7 @@ function updateCountdowns() {
                 });
                 if (entry.assigned_to.toLowerCase() === userEmail) {
                     showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes!", "w", 8000);
+                    if (document.hidden) sendBrowserNotif(title, msg);
                 }
             } else {
                 // Notify all users
@@ -823,6 +825,7 @@ function updateCountdowns() {
                     });
                 }
                 showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes! (notifying all users)", "w", 8000);
+                if (document.hidden) sendBrowserNotif(title, msg);
             }
         }
         // Update countdown spans (schedule + dashboard)

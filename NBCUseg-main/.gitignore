@@ -1,0 +1,8 @@
+node_modules/
+Thumbnails/
+add_banned_column.js
+fix_storage_rls.js
+opencode.json
+AGENTS.md
+*.log
+.DS_Store

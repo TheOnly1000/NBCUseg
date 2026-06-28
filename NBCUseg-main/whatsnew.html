@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Segmentor V2.0.1 — What's New</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<style>
+:root{--c-primary:#003ec7;--c-bg:#f8fafc;--c-scl:#ffffff;--c-sclo:#f1f5f9;--c-on-surface:#0f172a;--c-secondary:#64748b;--c-ov:#cbd5e1;--c-pf:#dbeafe;--c-sc:#e2e8f0}
+body{font-family:'Hanken Grotesk',sans-serif;background:var(--c-bg);color:var(--c-on-surface);margin:0;padding:0;-webkit-font-smoothing:antialiased}
+.ms{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;user-select:none;font-family:'Material Symbols Outlined'}
+</style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+  <div class="max-w-lg w-full bg-scl rounded-3xl shadow-lg border border-ov/50 overflow-hidden">
+    <div class="px-6 pt-6 pb-3 border-b border-ov/30 flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,var(--c-primary),#7c3aed)">
+        <span class="ms text-[30px] text-white">celebration</span>
+      </div>
+      <div>
+        <h1 class="font-black text-[22px] tracking-tight">Segmentor <span class="text-primary">V2.0.1</span></h1>
+        <p class="text-sm text-secondary mt-0.5">Hey there, check out what's new!</p>
+      </div>
+    </div>
+    <div class="px-6 py-4 space-y-3" id="features-list">
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">search</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Global Search</div><div class="text-[11px] text-secondary mt-0.5">Search across assets, tickets, schedule entries, and users from one place with date range, type, and scope filters.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">grid_view</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Dashboard Widgets</div><div class="text-[11px] text-secondary mt-0.5">At-a-glance cards showing Total Assets, My Active edits, Pending Handovers, Today's Schedule, and Open Tickets.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">fiber_manual_record</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Live Now Section</div><div class="text-[11px] text-secondary mt-0.5">See who's currently editing what, with elapsed timers and Live/Record badges, updated in real time.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">history</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Recent Activity Feed</div><div class="text-[11px] text-secondary mt-0.5">Lock and handover events from the last 24 hours, sorted newest first, with timestamps.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">timer</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Segment Countdown</div><div class="text-[11px] text-secondary mt-0.5">Live countdown in the editor showing time until the next scheduled event starts.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">edit_note</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Auto-Type from Schedule</div><div class="text-[11px] text-secondary mt-0.5">When loading an asset that matches a schedule entry, the Record/Live type is auto-selected.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">person</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">User Details on Click</div><div class="text-[11px] text-secondary mt-0.5">Click any user in search results to see their name, email, role, and avatar.</div></div>
+      </div>
+      <div class="flex items-start gap-3 px-4 py-3 rounded-xl bg-sclo border border-ov/30">
+        <div class="w-9 h-9 rounded-xl bg-pf text-primary flex items-center justify-center flex-shrink-0"><span class="ms text-[18px]">security</span></div>
+        <div class="flex-1 min-w-0"><div class="font-bold text-sm">Security Improvements</div><div class="text-[11px] text-secondary mt-0.5">Removed service role key from client, switched to Magic Link auth, added ban enforcement in realtime.</div></div>
+      </div>
+    </div>
+    <div class="px-6 py-4 border-t border-ov/30 flex justify-end bg-sclo">
+      <a href="index.html" class="btn-primary px-6 py-2.5 rounded-xl text-sm font-bold no-underline inline-flex items-center gap-2" style="background:var(--c-primary);color:#fff;text-decoration:none"><span class="ms text-[18px]">arrow_forward</span> Enter Segmentor</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Segmentor Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--primary:#003ec7;--bg:#f8fafc;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--text2:#64748b;--error:#dc2626;--success:#16a34a}
+*,*::before,*::after{box-sizing:border-box}
+body{font-family:'Hanken Grotesk',sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;-webkit-font-smoothing:antialiased}
+.ms{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;user-select:none;font-family:'Material Symbols Outlined';vertical-align:middle}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:900px;margin:0 auto}
+.inp{border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;width:100%;font-size:14px;outline:none;transition:border .2s}
+.inp:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(0,62,199,0.12)}
+.btn{background:var(--primary);color:#fff;border:none;padding:10px 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.9}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:8px}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-outline:hover{background:var(--bg)}
+.btn-danger{background:var(--error)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);padding:10px 12px;border-bottom:1px solid var(--border);font-weight:700}
+td{padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px}
+tr:hover{background:#f1f5f9}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-admin{background:#dc2626;color:#fff}
+.badge-editor{background:#003ec7;color:#fff}
+.badge-viewer{background:#64748b;color:#fff}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.au{animation:fadeUp .3s ease both}
+#toast{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.tk{display:flex;align-items:center;gap:10px;background:#fff;padding:12px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.15);border:1px solid var(--border);pointer-events:auto;animation:toastIn .3s both}
+@keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div id="login-screen" style="display:flex;align-items:center;justify-content:center;min-height:90vh">
+  <div class="card" style="max-width:380px;text-align:center">
+    <span class="ms" style="font-size:48px;color:var(--primary);margin-bottom:12px">admin_panel_settings</span>
+    <h1 style="font-size:22px;font-weight:800;margin:0 0 4px">Admin Panel</h1>
+    <p id="login-status" style="font-size:13px;color:var(--text2);margin:0 0 24px">Enter your email to receive a magic link</p>
+    <div id="admin-email-step">
+      <input id="admin-email" type="email" class="inp" placeholder="Your email address" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')sendMagicLink()">
+      <button onclick="sendMagicLink()" id="admin-magic-btn" class="btn" style="width:100%">Send Magic Link</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:16px">Only accessible from authorized devices. Check spam folder if not received.</p>
+  </div>
+</div>
+
+<div id="main-screen" style="display:none">
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <h1 style="font-size:24px;font-weight:800;margin:0">Admin Panel</h1>
+        <p style="font-size:13px;color:var(--text2);margin:4px 0 0">Manage users &amp; roles</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="loadAuditLogs()" class="btn btn-outline btn-sm flex items-center gap-1"><span class="ms" style="font-size:16px">history</span> Audit Log</button>
+        <button onclick="logoutAdmin()" class="btn btn-sm btn-danger flex items-center gap-1"><span class="ms" style="font-size:16px">logout</span> Logout</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:8px" id="admin-info"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h2 style="font-size:16px;font-weight:700;margin:0 0 4px">User Role Management</h2>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 16px">Assign roles: <strong>Admin</strong>, <strong>Editor</strong> (full access), <strong>Viewer</strong> (read-only)</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="user-table-body"></tbody>
+        </table>
+      </div>
+      <div id="no-users" style="display:none;text-align:center;padding:24px;color:var(--text2)">No users found.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h2 style="font-size:16px;font-weight:700;margin:0 0 4px">Thumbnail Manager</h2>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 16px">Upload or replace show thumbnails. Click the image to upload a new one.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="thumb-search" class="inp" style="flex:1" placeholder="Search shows..." oninput="renderThumbnailList()">
+      </div>
+      <div id="thumbnail-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+      <div id="no-thumbs" style="display:none;text-align:center;padding:24px;color:var(--text2)">No shows found.</div>
+    </div>
+
+    <div class="card" id="audit-section" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 style="font-size:16px;font-weight:700;margin:0">Audit Log</h2>
+        <div style="display:flex;gap:6px">
+          <button onclick="clearAuditLogs()" class="btn btn-sm btn-danger flex items-center gap-1"><span class="ms" style="font-size:16px">delete_sweep</span> Clear All</button>
+          <button onclick="closeAuditLogs()" class="btn btn-outline btn-sm">Close</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin:0 0 12px">Critical actions, errors, role changes, and suspicious activity. Auto-purged after 7 days.</p>
+      <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+        <table>
+          <thead>
+            <tr><th>Time</th><th>User</th><th>Action</th><th>Asset</th><th>Details</th></tr>
+          </thead>
+          <tbody id="audit-table-body"></tbody>
+        </table>
+      </div>
+      <div id="no-audit" style="display:none;text-align:center;padding:24px;color:var(--text2)">No audit logs yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://fzbktwyurskhvtwkklzu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6Ymt0d3l1cnNraHZ0d2trbHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzMDIwODEsImV4cCI6MjA5Nzg3ODA4MX0.MEZzsQ7BHs_Jh2wozEkJVml43T599w0PkG9GH8aAyUM";
+
+var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function st(msg, type) {
+  var t = document.getElementById("toast");
+  var e = document.createElement("div"); e.className = "tk";
+  e.innerHTML = '<span class="ms" style="font-size:18px;flex-shrink:0">' + (type === "e" ? "error" : type === "s" ? "check_circle" : "info") + '</span><span>' + msg + '</span>';
+  t.appendChild(e);
+  setTimeout(function(){e.style.opacity="0";e.style.transform="translateX(14px)";setTimeout(function(){e.remove()},300)},3000);
+}
+
+initAdminAuth();
+
+function initAdminAuth() {
+  sb.auth.getSession().then(function(r) {
+    if (r.data.session) checkAdminRole(r.data.session.user.email);
+  });
+  sb.auth.onAuthStateChange(function(event, session) {
+    if (event === "SIGNED_IN" && session) checkAdminRole(session.user.email);
+    else if (event === "SIGNED_OUT") showLoginScreen();
+  });
+}
+
+function checkAdminRole(email) {
+  sb.from("profiles").select("role").eq("email", email.toLowerCase()).maybeSingle().then(function(r) {
+    if (r.data && r.data.role === "admin") {
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("main-screen").style.display = "block";
+      document.getElementById("admin-info").textContent = "Logged in as " + email;
+      loadUsers();
+      loadThumbnailManager();
+      st("Authenticated as Admin", "s");
+    } else {
+      st("Access denied. You do not have admin privileges.", "e");
+      sb.auth.signOut();
+    }
+  });
+}
+
+function sendMagicLink() {
+  var email = document.getElementById("admin-email").value.trim();
+  if (!email) { st("Enter your email", "e"); return; }
+  var btn = document.getElementById("admin-magic-btn");
+  btn.disabled = true; btn.textContent = "Sending...";
+  sb.auth.signInWithOtp({
+    email: email,
+    options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + "/admin.html" }
+  }).then(function(r) {
+    btn.disabled = false; btn.textContent = "Send Magic Link";
+    if (r.error) {
+      if (r.error.message && r.error.message.indexOf("not found") >= 0) {
+        st("Email not registered in system.", "e");
+      } else {
+        st("Error: " + r.error.message, "e");
+      }
+      return;
+    }
+    document.getElementById("login-status").textContent = "Magic link sent to " + email + ". Check your inbox and click the link.";
+    st("Magic link sent!", "s");
+  });
+}
+
+function logoutAdmin() {
+  sb.auth.signOut();
+}
+
+function showLoginScreen() {
+  document.getElementById("login-screen").style.display = "flex";
+  document.getElementById("main-screen").style.display = "none";
+  document.getElementById("login-status").textContent = "Enter your email to receive a magic link";
+  document.getElementById("admin-email").value = "";
+  document.getElementById("admin-info").textContent = "";
+}
+
+async function loadUsers() {
+  var { data: profiles, error } = await sb.from("profiles").select("*");
+  if (error) { st("Error loading users: " + error.message, "e"); return; }
+  var tbody = document.getElementById("user-table-body");
+  var noUsers = document.getElementById("no-users");
+  var info = document.getElementById("admin-info");
+  tbody.innerHTML = "";
+  if (!profiles || profiles.length === 0) { noUsers.style.display = "block"; info.textContent = ""; return; }
+  noUsers.style.display = "none";
+  info.textContent = profiles.length + " total users";
+  profiles.forEach(function(p, i) {
+    var role = p.role || "viewer";
+    var banned = p.banned === true;
+    var badgeClass = banned ? "badge-admin" : (role === "admin" ? "badge-admin" : role === "editor" ? "badge-editor" : "badge-viewer");
+    var tr = document.createElement("tr");
+    tr.className = "au";
+    tr.style.animationDelay = (i * 40) + "ms";
+    if (banned) tr.style.opacity = "0.5";
+    tr.innerHTML = '<td><strong>' + (p.name || "—") + '</strong></td>' +
+      '<td style="font-family:monospace;font-size:12px">' + (p.email || "—") + '</td>' +
+      '<td>' +
+        '<select class="inp" style="width:auto;padding:4px 8px;font-size:12px" onchange="updateRole(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\',this.value)">' +
+        '<option value="viewer"' + (role === "viewer" ? " selected" : "") + '>Viewer</option>' +
+        '<option value="editor"' + (role === "editor" ? " selected" : "") + '>Editor</option>' +
+        '<option value="admin"' + (role === "admin" ? " selected" : "") + '>Admin</option>' +
+        '</select>' +
+      '</td>' +
+      '<td>' + (banned ? '<span class="badge badge-admin">BANNED</span>' : '<span class="badge" style="background:#e2e8f0;color:#16a34a">Active</span>') + '</td>' +
+      '<td style="display:flex;gap:4px">' +
+        '<button class="btn btn-sm ' + (banned ? 'btn-outline' : 'btn-danger') + '" onclick="' + (banned ? 'unbanUser' : 'banUser') + '(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\')">' + (banned ? 'Unban' : 'Ban') + '</button> ' +
+        '<button class="btn btn-sm btn-danger" onclick="removeUser(\'' + p.id + '\',\'' + (p.email || "") + '\',\'' + (p.name || "") + '\')">Remove</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+async function updateRole(uid, email, name, newRole) {
+  var { error } = await sb.from("profiles").update({ role: newRole }).eq("id", uid);
+  if (error) { st("Error updating role: " + error.message, "e"); return; }
+  st("Updated " + (name || email) + " → " + newRole.toUpperCase(), "s");
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "role_change", asset_id: "",
+    details: "Changed " + (name || email) + " role to " + newRole
+  });
+  loadUsers();
+}
+
+async function banUser(uid, email, name) {
+  if (!confirm("Ban " + (name || email) + "? They will be unable to log in.")) return;
+  var { error } = await sb.from("profiles").update({ banned: true }).eq("id", uid);
+  if (error) { st("Error banning user: " + error.message, "e"); return; }
+  st("Banned " + (name || email), "s");
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "user_banned", asset_id: "",
+    details: "Banned " + (name || email)
+  });
+  loadUsers();
+}
+
+async function unbanUser(uid, email, name) {
+  var { error } = await sb.from("profiles").update({ banned: false }).eq("id", uid);
+  if (error) { st("Error unbanning user: " + error.message, "e"); return; }
+  st("Unbanned " + (name || email), "s");
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "user_unbanned", asset_id: "",
+    details: "Unbanned " + (name || email)
+  });
+  loadUsers();
+}
+
+async function removeUser(uid, email, name) {
+  if (!confirm("PERMANENTLY remove " + (name || email) + "? This deletes their profile, comments, and auth account.")) return;
+  if (!confirm("Are you sure? This cannot be undone.")) return;
+  // Clean up user's data
+  sb.from("ticket_comments").delete().eq("user_email", email).then(function(){});
+  sb.from("notifications").delete().eq("target_email", email).then(function(){});
+  sb.from("notification_reads").delete().eq("user_email", email).then(function(){});
+  sb.from("comment_views").delete().eq("user_email", email).then(function(){});
+  sb.from("ticket_views").delete().eq("user_email", email).then(function(){});
+  // Delete profile
+  var { error } = await sb.from("profiles").delete().eq("id", uid);
+  if (error) { st("Error removing profile: " + error.message, "e"); return; }
+  // Delete from auth.users via RPC
+  try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e) { /* auth delete best-effort */ }
+  st("Removed " + (name || email) + " and all associated data", "s");
+  await sb.from("audit_logs").insert({
+    user_email: "admin@local", user_name: "Admin", action: "user_removed", asset_id: "",
+    details: "Removed user " + (name || email) + " and all associated data"
+  });
+  loadUsers();
+}
+
+async function loadAuditLogs() {
+  var section = document.getElementById("audit-section");
+  section.style.display = "block";
+  var sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  var { data: logs, error } = await sb.from("audit_logs")
+    .select("*")
+    .gte("created_at", sevenDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) { st("Error loading audit logs: " + error.message, "e"); return; }
+  var tbody = document.getElementById("audit-table-body");
+  var noAudit = document.getElementById("no-audit");
+  tbody.innerHTML = "";
+  if (!logs || logs.length === 0) { noAudit.style.display = "block"; return; }
+  noAudit.style.display = "none";
+  logs.forEach(function(l) {
+    var isErr = l.action.includes("error") || l.details?.includes("suspicious") || l.details?.includes("failed");
+    var tr = document.createElement("tr");
+    if (isErr) tr.style.background = "#fef2f2";
+    tr.innerHTML = '<td style="font-family:monospace;font-size:11px">' + new Date(l.created_at).toLocaleString() + '</td>' +
+      '<td>' + (l.user_name || l.user_email) + '</td>' +
+      '<td><span class="badge" style="background:' + (isErr ? '#dc2626' : '#e2e8f0') + ';color:' + (isErr ? '#fff' : '#0f172a') + '">' + l.action.replace(/_/g, " ") + '</span></td>' +
+      '<td style="font-family:monospace;font-size:12px">' + (l.asset_id || "—") + '</td>' +
+      '<td style="font-size:12px;color:var(--text2)">' + (l.details || "") + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function closeAuditLogs() {
+  document.getElementById("audit-section").style.display = "none";
+}
+
+async function clearAuditLogs() {
+  if (!confirm("Delete ALL audit logs? This cannot be undone.")) return;
+  var { error } = await sb.from("audit_logs").delete().gte("created_at", "2000-01-01");
+  if (error) { st("Error clearing logs: " + error.message, "e"); return; }
+  st("All audit logs cleared", "s");
+  closeAuditLogs();
+}
+
+// ============ THUMBNAIL MANAGER ============
+function normalizeShowName(title) {
+  if (!title) return "";
+  var t = title.trim();
+  var seps = [" — ", " – ", " - ", ": ", " #"];
+  for (var si = 0; si < seps.length; si++) {
+    var idx = t.indexOf(seps[si]);
+    if (idx > 0) {
+      var prefix = t.substring(0, idx).trim();
+      if (prefix.length >= 3) return prefix;
+    }
+  }
+  var vsIdx = t.toLowerCase().indexOf(" vs.");
+  if (vsIdx > 2) {
+    var teamPrefix = t.substring(0, vsIdx).trim();
+    if (teamPrefix.length >= 3) return teamPrefix;
+  }
+  return t;
+}
+
+var allShowGroups = [];
+var thumbnailData = {};
+
+async function loadThumbnailManager() {
+  var { data: segments, error } = await sb.from("segments").select("title");
+  if (error) { st("Error loading shows: " + error.message, "e"); return; }
+  var groups = {};
+  (segments || []).forEach(function(s) {
+    var t = (s.title || "").trim();
+    if (!t) return;
+    var base = normalizeShowName(t).toLowerCase();
+    if (!groups[base]) groups[base] = { name: t, episodes: {} };
+    groups[base].episodes[t.toLowerCase()] = true;
+    if (t.length < groups[base].name.length || groups[base].episodes[base]) groups[base].name = t;
+  });
+  allShowGroups = Object.keys(groups).sort().map(function(k) {
+    return { key: k, name: groups[k].name, count: Object.keys(groups[k].episodes).length };
+  });
+  var { data: thumbs } = await sb.from("asset_thumbnails").select("title,thumbnail_url");
+  thumbnailData = {};
+  (thumbs || []).forEach(function(t) { thumbnailData[t.title.toLowerCase()] = t.thumbnail_url; });
+  renderThumbnailList();
+}
+
+function renderThumbnailList() {
+  var container = document.getElementById("thumbnail-list");
+  var noThumbs = document.getElementById("no-thumbs");
+  if (!container) return;
+  container.innerHTML = "";
+  var q = (document.getElementById("thumb-search")?.value || "").trim().toLowerCase();
+  var filtered = q ? allShowGroups.filter(function(g) { return g.name.toLowerCase().includes(q) || g.key.includes(q); }) : allShowGroups;
+  if (!filtered.length) { noThumbs.style.display = "block"; return; }
+  noThumbs.style.display = "none";
+  filtered.forEach(function(group) {
+    var url = thumbnailData[group.key] || null;
+    var card = document.createElement("div");
+    card.style.cssText = "background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow .2s";
+    var imgContainer = document.createElement("div");
+    imgContainer.style.cssText = "position:relative;height:120px;background:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden";
+    imgContainer.title = "Click to upload thumbnail";
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.style.display = "none";
+    fileInput.onchange = function() { uploadThumbnail(group.key, group.name, fileInput); };
+    if (url) {
+      var img = document.createElement("img");
+      img.src = url;
+      img.style.cssText = "width:100%;height:100%;object-fit:cover";
+      img.onerror = function() { img.style.display = "none"; showPlaceholder(imgContainer); };
+      imgContainer.appendChild(img);
+    } else { showPlaceholder(imgContainer); }
+    var uploadOverlay = document.createElement("div");
+    uploadOverlay.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);opacity:0;transition:opacity .2s;color:#fff;font-size:13px;font-weight:700";
+    uploadOverlay.innerHTML = '<span class="ms" style="font-size:32px">cloud_upload</span>';
+    imgContainer.onmouseenter = function() { uploadOverlay.style.opacity = "1" };
+    imgContainer.onmouseleave = function() { uploadOverlay.style.opacity = "0" };
+    imgContainer.onclick = function() { fileInput.click(); };
+    imgContainer.appendChild(uploadOverlay);
+    imgContainer.appendChild(fileInput);
+    card.appendChild(imgContainer);
+    var label = document.createElement("div");
+    label.style.cssText = "padding:10px 12px 4px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis";
+    label.textContent = group.name;
+    card.appendChild(label);
+    if (group.count > 1) {
+      var sub = document.createElement("div");
+      sub.style.cssText = "padding:0 12px 10px;font-size:11px;color:var(--text2)";
+      sub.textContent = group.count + " episodes";
+      card.appendChild(sub);
+    }
+    container.appendChild(card);
+  });
+}
+
+function showPlaceholder(el) { el.innerHTML = '<span class="ms" style="font-size:40px;color:#94a3b8">image</span>'; }
+
+function showProgress(el, pct) {
+  el.innerHTML = '<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f1f5f9;gap:8px"><div style="width:80%;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--primary);border-radius:3px;transition:width .2s"></div></div><span style="font-size:11px;color:var(--text2);font-weight:600">' + pct + '%</span></div>';
+}
+
+async function uploadThumbnail(key, displayName, fileInput) {
+  var file = fileInput.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { st("Image too large. Max 2MB.", "e"); fileInput.value = ""; return; }
+  var card = fileInput.closest("div");
+  var imgContainer = card.querySelector("div");
+  showProgress(imgContainer, 0);
+  
+  var fileName = key.replace(/[^a-z0-9]+/g, "-") + "-" + Date.now() + "." + (file.name.split(".").pop() || "jpg");
+  
+  var session = (await sb.auth.getSession()).data.session;
+  if (!session) { st("Not authenticated", "e"); showPlaceholder(imgContainer); fileInput.value = ""; return; }
+  
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", SUPABASE_URL + "/storage/v1/object/thumbnails/" + encodeURIComponent(fileName));
+  xhr.setRequestHeader("authorization", "Bearer " + session.access_token);
+  xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+  xhr.setRequestHeader("x-upsert", "true");
+  
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) showProgress(imgContainer, Math.round((e.loaded / e.total) * 100));
+  };
+  
+  xhr.onload = async function() {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      var publicUrl = SUPABASE_URL + "/storage/v1/object/public/thumbnails/" + encodeURIComponent(fileName);
+      var { error: dbError } = await sb.from("asset_thumbnails").upsert(
+        { title: key, thumbnail_url: publicUrl }, { onConflict: "title" }
+      );
+      if (dbError) { st("DB error: " + dbError.message, "e"); showPlaceholder(imgContainer); }
+      else {
+        thumbnailData[key] = publicUrl;
+        try {
+          var raw = localStorage.getItem("seg_thumb_cache");
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && parsed.cache) {
+              parsed.cache[key] = publicUrl;
+              localStorage.setItem("seg_thumb_cache", JSON.stringify(parsed));
+            }
+          }
+        } catch(e) { /* ignore */ }
+        st("Thumbnail saved for " + displayName, "s");
+        renderThumbnailList();
+      }
+    } else {
+      st("Upload error: " + (xhr.responseText || xhr.statusText), "e");
+      showPlaceholder(imgContainer);
+    }
+    fileInput.value = "";
+  };
+  
+  xhr.onerror = function() { st("Upload failed: network error", "e"); showPlaceholder(imgContainer); fileInput.value = ""; };
+  
+  xhr.send(file);
+}
+</script>
+</body>
+</html>
