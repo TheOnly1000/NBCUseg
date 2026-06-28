@@ -76,6 +76,7 @@ function subscribeRealTime() {
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: "target_email=eq." + currentUser.email }, function(payload) {
             var n = payload.new;
             showToast(n.message, "i", 5000);
+            sendBrowserNotif("Segmentor", n.message || "New notification");
             fetchNotifications();
             if (n.sync_needed) loadAllSegments();
         })
