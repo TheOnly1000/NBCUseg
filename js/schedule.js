@@ -434,7 +434,7 @@ function renderSchedule() {
     var tbody = document.getElementById("schedule-tbody");
     var empty = document.getElementById("schedule-empty");
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
-    if (!tbody) return;
+    if (!tbody) { hideSkel("schedule"); return; }
     
     // If a date is selected, show 3-day window centered on it; otherwise show today's buffer
     var dp = document.getElementById("schedule-date-filter");
@@ -452,6 +452,7 @@ function renderSchedule() {
         if (upcomingCards) {
             upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries in the current buffer window. Sync from sheet to load data.</div>';
         }
+        hideSkel("schedule");
         return;
     }
     if (empty) empty.style.display = "none";
@@ -859,12 +860,13 @@ function renderScheduleTable(entries) {
     var tbody = document.getElementById("schedule-tbody");
     var empty = document.getElementById("schedule-empty");
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
-    if (!tbody) return;
+    if (!tbody) { hideSkel("schedule"); return; }
     
     if (entries.length === 0) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
         if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries in the current buffer window.</div>';
+        hideSkel("schedule");
         return;
     }
     if (empty) empty.style.display = "none";
@@ -934,6 +936,7 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><sp
     if (statsEl) {
         statsEl.textContent = stats.upcomingToday + " upcoming today · " + stats.totalUpcoming + " total upcoming";
     }
+    hideSkel("schedule");
 }
 
 

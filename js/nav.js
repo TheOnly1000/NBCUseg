@@ -63,6 +63,15 @@ function loadAllSegments() {
 // 11. NAVIGATION & TABS
 // ============================================================================
 
+function showSkel(vid) {
+    var el = document.getElementById(vid + "-skel");
+    if (el) el.classList.remove("hidden");
+}
+function hideSkel(vid) {
+    var el = document.getElementById(vid + "-skel");
+    if (el) el.classList.add("hidden");
+}
+
 function nav(viewId) {
     closeSidebar();
     
@@ -89,6 +98,8 @@ function nav(viewId) {
         targetView.classList.add("on", "enter");
         targetView.scrollTop = 0;
     }
+    
+    showSkel(viewId);
     
     const sidebarNavBtn = document.getElementById("nb-" + viewId);
     if (sidebarNavBtn) sidebarNavBtn.classList.add("on");
@@ -341,6 +352,12 @@ function nav(viewId) {
             if (rptLockedEl) rptLockedEl.style.display = "none";
         }
     }
+    if (viewId === "dashboard") {
+        if (Object.keys(globalSegments||{}).length) renderDash();
+    }
+    if (viewId === "assets") {
+        if (Object.keys(globalSegments||{}).length) renderAssets();
+    }
     if (viewId === "schedule") {
         loadScheduleFromDb(true);
     }
@@ -425,9 +442,10 @@ nav = function(viewId) {
     document.querySelectorAll(".vp").forEach(function(v) { v.classList.remove("on", "enter"); });
     document.querySelectorAll(".nav-btn,.bn").forEach(function(b) { b.classList.remove("on"); });
     var tv = document.getElementById("vp-tickets"); if (tv) { tv.classList.add("on", "enter"); tv.style.display = "block"; }
+    showSkel("tickets");
     var nb = document.getElementById("nb-tickets"); if (nb) nb.classList.add("on");
     var nb2 = document.getElementById("bn-tickets"); if (nb2) nb2.classList.add("on");
-    try { renderTicketsView(); } catch(e) { console.error("renderTicketsView error:", e); }
+    if (Array.isArray(ticketsCache) && ticketsCache.length) { try { renderTicketsView(); } catch(e) { console.error("renderTicketsView error:", e); } }
     loadTickets();
     return;
   }

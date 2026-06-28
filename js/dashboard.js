@@ -234,7 +234,7 @@ function renderDash() {
     const selectedYear = document.getElementById("d-yr")?.value || "All";
     const selectedMonth = document.getElementById("d-mo")?.value || "All";
     const gridContainer = document.getElementById("dgrid");
-    if(!gridContainer) return;
+    if(!gridContainer) { hideSkel("dashboard"); return; }
     
     gridContainer.innerHTML = "";
     const filteredAssets = grpAssets(selectedYear, selectedMonth);
@@ -252,6 +252,7 @@ function renderDash() {
                 </button>
             </div>
         `;
+        hideSkel("dashboard");
         return;
     }
     
@@ -297,7 +298,7 @@ function renderDash() {
             <div class="ct h-[135px] relative overflow-hidden" style="${thumbBgStyle}">
                 <div class="absolute inset-0" style="background:linear-gradient(180deg,rgba(0,0,0,.08) 0%,rgba(0,0,0,.75) 100%)"></div>
                 <div class="absolute top-3 left-3 ${badgeStyle} px-2 py-0.5 rounded-md text-[10px] font-mono font-bold uppercase tracking-wider shadow-sm">${sanitizeHTML(asset.type || "EVENT")}</div>
-                ${hasGlitch && assetStatus !== "Ended" && assetStatus !== "Handed Over" && assetStatus !== "Handover" ? `<div class="absolute top-3 right-3 bg-ec text-error px-1.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-0.5 shadow-sm border border-error/20"><span class="ms" style="font-size:11px">warning</span>Glitch</div>` : ""}
+                ${hasGlitch && assetStatus !== "Ended" && assetStatus !== "Handed Over" && assetStatus !== "Handover" ? `<div class="absolute top-[38px] right-3 bg-ec text-error px-1.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-0.5 shadow-sm border border-error/20"><span class="ms" style="font-size:11px">warning</span>Glitch</div>` : ""}
                 ${statusBadgeHtml}
                 <div class="absolute bottom-2.5 left-3 text-[18px] font-black text-white/40 font-mono tracking-widest">${code}</div>
                 <div class="absolute bottom-2.5 right-3 text-[10px] font-mono" style="color:rgba(255,255,255,.7)">${fmtD(asset.date)}</div>
@@ -336,6 +337,7 @@ function renderDash() {
         toggleBtn.innerHTML = '<button onclick="toggleDashShowAll()" class="btn-secondary flex items-center gap-2 text-sm px-6 py-2.5 rounded-xl ripple-host"><span class="ms text-[18px]">' + (showAll ? 'unfold_less' : 'unfold_more') + '</span>' + (showAll ? 'Show Less' : 'See All (' + filteredAssets.length + ' assets)') + '</button>';
         gridContainer.appendChild(toggleBtn);
     }
+    hideSkel("dashboard");
 }
 
 function toggleDashShowAll() {
@@ -349,7 +351,7 @@ function renderAssets() {
     const selectedYear = document.getElementById("a-yr")?.value || "All";
     const selectedMonth = document.getElementById("a-mo")?.value || "All";
     const container = document.getElementById("assets-container");
-    if (!container) { renderAssetsLegacy(); return; }
+    if (!container) { hideSkel("assets"); renderAssetsLegacy(); return; }
     
     container.innerHTML = "";
     const filteredAssets = grpAssets(selectedYear, selectedMonth);
@@ -363,6 +365,7 @@ function renderAssets() {
     
     if (!filteredAssets.length) {
         container.innerHTML = '<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';
+        hideSkel("assets");
         return;
     }
     
@@ -443,6 +446,7 @@ function renderAssets() {
             };
         });
     });
+    hideSkel("assets");
 }
 
 function toggleAssetsGroup(key) {

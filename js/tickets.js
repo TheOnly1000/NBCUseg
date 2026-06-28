@@ -57,9 +57,9 @@ function renderTicketsView(){
       }
       return true
     });
-    var tb=document.getElementById("ttbody");if(!tb)return;tb.innerHTML="";
+    var tb=document.getElementById("ttbody");if(!tb){hideSkel("tickets");return}tb.innerHTML="";
     var empty=document.getElementById("tickets-empty");
-    if(!filtered.length){tb.innerHTML="";if(empty)empty.style.display="block";return}
+    if(!filtered.length){tb.innerHTML="";if(empty)empty.style.display="block";hideSkel("tickets");return}
     if(empty)empty.style.display="none";
     filtered.forEach(function(t,i){
       var sc=t.status==="open"?"text-amber-500 font-bold":t.status==="resolved"?"text-green-500":"text-secondary";
@@ -75,10 +75,12 @@ function renderTicketsView(){
     });
     // Ensure empty state is hidden if we rendered rows
     if(empty)empty.style.display="none";
+    hideSkel("tickets");
   } catch(e) {
     console.error("renderTicketsView error:", e);
     var empty=document.getElementById("tickets-empty");
     if(empty)empty.style.display="block";
+    hideSkel("tickets");
   }
 }
 

@@ -170,14 +170,14 @@ function renderBillingView(){
   var mo=document.getElementById("b-mo")?.value||"All";
   var dtFrom=document.getElementById("b-date-from")?.value||"";
   var dtTo=document.getElementById("b-date-to")?.value||"";
-  var container=document.getElementById("billing-container");if(!container)return;container.innerHTML="";
+  var container=document.getElementById("billing-container");if(!container){hideSkel("billing");return}container.innerHTML="";
   var assets=grpAssets(yr,mo);
-  if(!assets.length){container.innerHTML='<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';return}
+  if(!assets.length){container.innerHTML='<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';hideSkel("billing");return}
   if(dtFrom||dtTo){
     var f=function(d){if(!d)return true;var dv=new Date(d);if(isNaN(dv))return true;if(dtFrom&&dv<new Date(dtFrom))return false;if(dtTo){var t=new Date(dtTo);t.setDate(t.getDate()+1);if(dv>=t)return false}return true};
     assets=assets.filter(function(a){return a.rows.some(function(r){return f(cleanDateString(r[0]))})})
   }
-  if(!assets.length){container.innerHTML='<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';return}
+  if(!assets.length){container.innerHTML='<div class="card ts p-10 text-center text-secondary font-bold text-[16px]">No assets match this filter.</div>';hideSkel("billing");return}
   
   // Group by year-month
   var groups={};
@@ -242,7 +242,8 @@ function renderBillingView(){
   var gt=document.createElement("div");
   gt.className="card ts bg-sclo mt-4";
   gt.innerHTML='<div class="flex items-center justify-between px-6 py-4"><span class="font-bold text-[16px] text-on-surface">Grand Total</span><div class="flex items-center gap-8 text-sm font-mono"><span class="text-secondary">Actual: <strong class="text-on-surface">'+tcStr(grandActual)+'</strong></span><span class="text-secondary">Expected: <strong class="text-on-surface">'+tcStr(grandExpected)+'</strong></span><span class="text-secondary">Overtime: <strong class="text-error">+'+tcStr(grandOvertime)+'</strong></span></div></div>';
-  container.appendChild(gt)
+  container.appendChild(gt);
+  hideSkel("billing");
 }
 
 function toggleBillingGroup(key){

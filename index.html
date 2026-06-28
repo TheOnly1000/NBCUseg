@@ -497,6 +497,23 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
       <div id="vwrap">
 
         <div id="vp-dashboard" class="vp on">
+          <div id="dashboard-skel" class="hidden sk-overlay p-5 lg:p-8">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+              <div class="card skeleton sk-widget"></div>
+              <div class="card skeleton sk-widget"></div>
+              <div class="card skeleton sk-widget"></div>
+              <div class="card skeleton sk-widget"></div>
+              <div class="card skeleton sk-widget"></div>
+            </div>
+            <div class="lg-grid">
+              <div class="ac skeleton"><div class="ct sk-thumb"></div><div class="cb p-5"><div class="skeleton sk-text w-3/4"></div><div class="skeleton sk-text-sm"></div><div class="flex justify-between items-center mt-4 pt-3 border-t border-ov/30"><div class="flex items-center gap-2"><div class="skeleton sk-avatar"></div><div class="skeleton sk-text w-20"></div></div><div class="skeleton sk-text w-16"></div></div></div></div>
+              <div class="ac skeleton"><div class="ct sk-thumb"></div><div class="cb p-5"><div class="skeleton sk-text w-2/3"></div><div class="skeleton sk-text-sm"></div><div class="flex justify-between items-center mt-4 pt-3 border-t border-ov/30"><div class="flex items-center gap-2"><div class="skeleton sk-avatar"></div><div class="skeleton sk-text w-24"></div></div><div class="skeleton sk-text w-14"></div></div></div></div>
+              <div class="ac skeleton"><div class="ct sk-thumb"></div><div class="cb p-5"><div class="skeleton sk-text w-4/5"></div><div class="skeleton sk-text-sm"></div><div class="flex justify-between items-center mt-4 pt-3 border-t border-ov/30"><div class="flex items-center gap-2"><div class="skeleton sk-avatar"></div><div class="skeleton sk-text w-16"></div></div><div class="skeleton sk-text w-12"></div></div></div></div>
+              <div class="ac skeleton"><div class="ct sk-thumb"></div><div class="cb p-5"><div class="skeleton sk-text w-3/4"></div><div class="skeleton sk-text-sm"></div><div class="flex justify-between items-center mt-4 pt-3 border-t border-ov/30"><div class="flex items-center gap-2"><div class="skeleton sk-avatar"></div><div class="skeleton sk-text w-20"></div></div><div class="skeleton sk-text w-14"></div></div></div></div>
+              <div class="ac skeleton"><div class="ct sk-thumb"></div><div class="cb p-5"><div class="skeleton sk-text w-2/3"></div><div class="skeleton sk-text-sm"></div><div class="flex justify-between items-center mt-4 pt-3 border-t border-ov/30"><div class="flex items-center gap-2"><div class="skeleton sk-avatar"></div><div class="skeleton sk-text w-24"></div></div><div class="skeleton sk-text w-16"></div></div></div></div>
+              <div class="ac skeleton"><div class="ct sk-thumb"></div><div class="cb p-5"><div class="skeleton sk-text w-4/5"></div><div class="skeleton sk-text-sm"></div><div class="flex justify-between items-center mt-4 pt-3 border-t border-ov/30"><div class="flex items-center gap-2"><div class="skeleton sk-avatar"></div><div class="skeleton sk-text w-16"></div></div><div class="skeleton sk-text w-12"></div></div></div></div>
+            </div>
+          </div>
           <div class="p-5 lg:p-8 pb-10">
             <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
               <div>
@@ -532,6 +549,27 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
         </div>
 
         <div id="vp-schedule" class="vp">
+          <div id="schedule-skel" class="hidden sk-overlay p-5 lg:p-8">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="skeleton sk-text w-40"></div>
+              <div class="skeleton sk-btn"></div>
+              <div class="skeleton sk-btn"></div>
+              <div class="skeleton sk-btn"></div>
+              <div class="skeleton sk-btn w-36"></div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 mb-6">
+              <div class="card skeleton sk-card"></div>
+              <div class="card skeleton sk-card"></div>
+              <div class="card skeleton sk-card"></div>
+            </div>
+            <div class="card skeleton p-4">
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row"></div>
+            </div>
+          </div>
           <div class="p-5 lg:p-8 pb-10">
             <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div>
@@ -579,6 +617,24 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
         </div>
 
         <div id="vp-assets" class="vp">
+          <div id="assets-skel" class="hidden sk-overlay p-5 lg:p-8">
+            <div class="flex items-center gap-3 mb-8">
+              <div class="skeleton sk-text w-48"></div>
+              <div class="skeleton sk-text w-32"></div>
+              <div class="skeleton sk-btn"></div>
+              <div class="skeleton sk-btn w-24"></div>
+            </div>
+            <div class="card skeleton mb-4 p-4">
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row"></div>
+            </div>
+            <div class="card skeleton p-4">
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row"></div>
+            </div>
+          </div>
           <div class="p-5 lg:p-8 pb-10">
             <div class="flex flex-wrap justify-between items-end gap-4 mb-8">
               <div>
@@ -808,6 +864,20 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
         </div>
 
         <div id="vp-tickets" class="vp">
+          <div id="tickets-skel" class="hidden sk-overlay p-5 lg:p-8">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="skeleton sk-text w-40"></div>
+              <div class="skeleton sk-text w-48"></div>
+              <div class="skeleton sk-btn"></div>
+            </div>
+            <div class="card skeleton p-4">
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row"></div>
+            </div>
+          </div>
           <div class="p-5 lg:p-8 pb-10">
             <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div><h1 class="font-black tracking-tight text-[26px] lg:text-[30px] text-on-surface">Tickets</h1><p class="text-secondary text-sm mt-1">Issue tracking with @mentions, comments, and resolution logs.</p></div>
@@ -856,6 +926,29 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
         </div>
 
         <div id="vp-billing" class="vp">
+          <div id="billing-skel" class="hidden sk-overlay p-5 lg:p-8">
+            <div class="flex items-center gap-3 mb-6">
+              <div class="skeleton sk-text w-32"></div>
+              <div class="skeleton sk-text w-32"></div>
+              <div class="skeleton sk-text w-40"></div>
+              <div class="skeleton sk-text w-40"></div>
+              <div class="skeleton sk-btn"></div>
+              <div class="skeleton sk-btn w-24"></div>
+            </div>
+            <div class="card skeleton mb-4 p-4">
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row"></div>
+            </div>
+            <div class="card skeleton p-4">
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row mb-2"></div>
+              <div class="skeleton sk-row"></div>
+            </div>
+            <div class="card skeleton p-4 mt-4">
+              <div class="skeleton sk-row"></div>
+            </div>
+          </div>
           <div class="p-5 lg:p-8 pb-10">
             <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div>
