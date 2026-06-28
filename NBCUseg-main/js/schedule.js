@@ -283,7 +283,7 @@ function syncScheduleFromSheet() {
         }).catch(function(err) {
             hideLoader();
             renderSchedule(); renderDash();
-            console.error("syncScheduleFromSheet error:", err); showToast("Failed to sync schedule.", "e", 8000);
+            showToast("Schedule save failed: " + (err && err.message ? err.message : err), "e", 8000);
             console.error("syncScheduleFromSheet error:", err);
         });
     }).catch(function(err) {
@@ -358,7 +358,7 @@ function upsertScheduleEntriesForDate(entries, dateFilter) {
     }).catch(function(err) {
         renderSchedule();
         renderDash();
-        console.error("upsertScheduleEntriesForDate error:", err); showToast("Failed to save schedule.", "e", 8000);
+        showToast("Schedule loaded but DB save failed: " + (err && err.message ? err.message : err), "e", 8000);
         console.error("upsertScheduleEntriesForDate DB error:", err);
     });
 }
@@ -434,7 +434,7 @@ function renderSchedule() {
     var tbody = document.getElementById("schedule-tbody");
     var empty = document.getElementById("schedule-empty");
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
-    if (!tbody) { hideSkel("schedule"); return; }
+    if (!tbody) return;
     
     // If a date is selected, show 3-day window centered on it; otherwise show today's buffer
     var dp = document.getElementById("schedule-date-filter");
@@ -452,7 +452,6 @@ function renderSchedule() {
         if (upcomingCards) {
             upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries in the current buffer window. Sync from sheet to load data.</div>';
         }
-        hideSkel("schedule");
         return;
     }
     if (empty) empty.style.display = "none";
@@ -498,7 +497,7 @@ function updateScheduleAssignment(rowIndex, assignedTo) {
     sb.from("schedule_entries").update({ assigned_to: assignedTo, status: entry.status, updated_at: new Date().toISOString() })
         .eq("row_index", rowIndex).eq("schedule_date", entry.schedule_date)
         .then(function(result) {
-            if (result.error) { console.error("updateScheduleAssignment error:", result.error); showToast("Failed to update assignment.", "e"); return; }
+            if (result.error) { showToast("Failed to update assignment: " + result.error.message, "e"); return; }
             // Notify newly assigned user (skip self-assignment)
             var assignEmail = (assignedTo || "").toLowerCase();
             if (assignedTo && assignEmail !== curEmail && assignEmail !== (prevAssigned || "").toLowerCase()) {
@@ -589,7 +588,7 @@ function launchFromSchedule(rowIndex) {
         locked_at: nowISO
     }).then(function(result) {
         if (result.error) {
-            console.error("launchFromSchedule error:", result.error); showToast("Failed to launch asset.", "e");
+            showToast("Create failed: " + result.error.message, "e");
             showGlobalLoader(false);
             return;
         }
@@ -861,13 +860,12 @@ function renderScheduleTable(entries) {
     var tbody = document.getElementById("schedule-tbody");
     var empty = document.getElementById("schedule-empty");
     var upcomingCards = document.getElementById("schedule-upcoming-cards");
-    if (!tbody) { hideSkel("schedule"); return; }
+    if (!tbody) return;
     
     if (entries.length === 0) {
         tbody.innerHTML = "";
         if (empty) empty.style.display = "block";
         if (upcomingCards) upcomingCards.innerHTML = '<div class="text-secondary text-sm col-span-full text-center py-8">No entries in the current buffer window.</div>';
-        hideSkel("schedule");
         return;
     }
     if (empty) empty.style.display = "none";
@@ -937,7 +935,6 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><sp
     if (statsEl) {
         statsEl.textContent = stats.upcomingToday + " upcoming today · " + stats.totalUpcoming + " total upcoming";
     }
-    hideSkel("schedule");
 }
 
 
