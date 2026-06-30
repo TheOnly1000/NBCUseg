@@ -607,17 +607,20 @@ function launchFromSchedule(rowIndex) {
                 renderDash();
             });
 
-        loadAllSegments().then(function() {
-            showGlobalLoader(false);
-            loadToEditor(assetId).then(function(){
-                var expDurEl = document.getElementById("metaExpDur");
-                if (expDurEl) expDurEl.value = expectedDur;
-                var expSegEl = document.getElementById("metaExpSeg");
-                if (expSegEl) expSegEl.value = expectedSeg;
-                calcGrid();
-            });
-            showToast(assetId + " launched from schedule. Duration: " + expectedDur + ", Segments: " + expectedSeg + ".", "s");
+        // Add to globalSegments in-memory (skip full DB reload)
+        var rowArr = [dateVal, assetId, titleVal, typeVal, "A", "", "", "", "", "", "", "", ownerName, "In Progress", "", "", "", currentUser.email, nowISO, {}, "", "", "", "", "", "", ""];
+        if (!globalSegments[assetId]) globalSegments[assetId] = { id: assetId, title: titleVal, type: typeVal, date: dateVal, year: new Date(dateVal).getFullYear() || "", rows: [] };
+        globalSegments[assetId].rows.push(rowArr);
+
+        showGlobalLoader(false);
+        loadToEditor(assetId).then(function(){
+            var expDurEl = document.getElementById("metaExpDur");
+            if (expDurEl) expDurEl.value = expectedDur;
+            var expSegEl = document.getElementById("metaExpSeg");
+            if (expSegEl) expSegEl.value = expectedSeg;
+            calcGrid();
         });
+        showToast(assetId + " launched from schedule. Duration: " + expectedDur + ", Segments: " + expectedSeg + ".", "s");
     });
 }
 
