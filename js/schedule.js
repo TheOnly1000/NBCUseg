@@ -692,7 +692,7 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
             var ti = getTypeInfo(entry.event_type);
 
             var _isRunning = ct2 === "RUNNING";
-            html += "<div class='card relative overflow-hidden" + (_ctEnded ? " opacity-50 grayscale" : "") + " border border-ov/50 p-4 flex flex-col gap-2" + (_ctEnded ? " bg-sc" : " bg-scl") + "'>";
+            html += "<div class='card relative overflow-hidden" + (_ctEnded ? " opacity-80" : "") + " border border-ov/50 p-4 flex flex-col gap-2 bg-scl'>";
             if (_isRunning) html += "<div class='absolute top-2 right-2 w-2.5 h-2.5 bg-error rounded-full animate-pulse'></div>";
             html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + niceDate + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
             html += "<div class='font-bold text-sm text-on-surface truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</div>";
