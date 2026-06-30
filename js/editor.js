@@ -894,10 +894,7 @@ async function createNewAsset() {
     // Fire-and-forget thumbnail fetch
     fetchThumbnailForTitle(titleVal);
     
-    // Add to globalSegments in-memory (skip full DB reload)
-    var rowArr = [dateVal, idVal, titleVal, typeVal, "A", "", "", "", "", "", "", "", ownerName, "In Progress", "", "", "", currentUser.email, nowISO, {}, "", "", "", "", "", "", ""];
-    if (!globalSegments[idVal]) globalSegments[idVal] = { id: idVal, title: titleVal, type: typeVal, date: dateVal, year: new Date(dateVal).getFullYear() || "", rows: [] };
-    globalSegments[idVal].rows.push(rowArr);
+    await loadAllSegments();
     
     showGlobalLoader(false);
     
