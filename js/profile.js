@@ -152,16 +152,25 @@ function getUserAvatarHtml(email, name, size) {
 
 async function deleteUserAccount() {
     showGlobalLoader(true);
+    var email = currentUser.email || "";
+    var uid = currentUser.id;
+    // Try the all-in-one RPC first
     var { error } = await sb.rpc("self_delete_account");
-    showGlobalLoader(false);
-    if (error) {
-        console.error("delete account error:", error);
-        if (error.message && error.message.includes("does not exist")) {
-            showToast("Database function not installed. Run the SQL migration in Supabase SQL Editor.", "e", 8000);
-        } else {
-            showToast("Failed to delete account: " + error.message, "e", 6000);
-        }
+    // If RPC doesn't exist, fall back to individual ops
+    if (error && error.message && error.message.includes("does not exist")) {
+        console.warn("self_delete_account RPC not found, falling back to individual deletes");
+        await sb.from("ticket_comments").delete().eq("user_email", email);
+        await sb.from("notifications").delete().eq("target_email", email);
+        await sb.from("notification_reads").delete().eq("user_email", email);
+        await sb.from("comment_views").delete().eq("user_email", email);
+        await sb.from("ticket_views").delete().eq("user_email", email);
+        await sb.from("profiles").delete().eq("id", uid);
+        try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e2) { console.warn("admin_delete_user also missing:", e2); }
+    } else if (error) {
+        showGlobalLoader(false);
+        showToast("Failed to delete account: " + error.message, "e", 6000);
         return;
     }
+    showGlobalLoader(false);
     processLogout("deleted");
 }

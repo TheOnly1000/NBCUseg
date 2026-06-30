@@ -185,5 +185,9 @@ function processLogout(reason) {
     var grid = document.getElementById("segmentGrid");
     if(grid) grid.innerHTML = "";
     clearInterval(autoSaveTimer);
-    window.location.href = reason === "deleted" ? "./signout.html?deleted=1" : "./signout.html";
+    if (reason === "deleted") {
+        window.location.href = "./signout.html?deleted=1";
+    } else {
+        nav("login");
+    }
 }
