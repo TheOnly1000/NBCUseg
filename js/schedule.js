@@ -534,7 +534,7 @@ function launchFromSchedule(rowIndex) {
 
     var userEmailForLaunch = (currentUser && currentUser.email || "").toLowerCase();
     if (!entry.assigned_to) { showToast("Not assigned to anyone.", "e"); return; }
-    if (entry.assigned_to.toLowerCase() !== userEmailForLaunch) {
+    if (entry.assigned_to.toLowerCase().replace(' (deleted)', '') !== userEmailForLaunch) {
         showToast("This entry is assigned to someone else.", "e");
         return;
     }
@@ -681,7 +681,7 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
         html += "</h3></div>";
 
         groupEntries.forEach(function(entry) {
-            var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
+            var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === userEmail;
             var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
             var _ctEnded = getCountdownText(entry) === "ENDED";
             var canLaunch = isAssignedToMe && !assetExists && !_ctEnded;
@@ -806,11 +806,11 @@ function updateCountdowns() {
             if (entry.assigned_to) {
                 // Notify assigned user
                 sb.from("notifications").insert({
-                    target_email: entry.assigned_to.toLowerCase(),
+                    target_email: entry.assigned_to.toLowerCase().replace(' (deleted)', ''),
                     from_user: "System", message: msg,
                     notification_type: "schedule_alert", asset_id: aid, read: false
                 });
-                if (entry.assigned_to.toLowerCase() === userEmail) {
+                if (entry.assigned_to.toLowerCase().replace(' (deleted)', '') === userEmail) {
                     showToast("🔔 " + (entry.episode_title || entry.series_name) + " starts in 5 minutes!", "w", 8000);
                     if (document.hidden) sendBrowserNotif(title, msg);
                 }
@@ -878,7 +878,7 @@ function renderScheduleTable(entries) {
     
     var html = "";
     entries.forEach(function(entry, idx) {
-        var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase() === userEmail;
+        var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === userEmail;
         var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
         var _ctEnded2 = getCountdownText(entry) === "ENDED";
         var canLaunch = isAssignedToMe && !assetExists && !_ctEnded2;
@@ -904,7 +904,7 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><sp
             var p = userProfiles[emailKey];
             var pEmail = p.email || emailKey;
             var pName = p.name || pEmail.split('@')[0];
-            var sel = (entry.assigned_to && entry.assigned_to.toLowerCase() === pEmail.toLowerCase()) ? " selected" : "";
+            var sel = (entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === pEmail.toLowerCase()) ? " selected" : "";
             html += "<option value='" + escHtml(pEmail) + "'" + sel + ">" + escHtml(pName) + " (" + escHtml(pEmail) + ")</option>";
         }
         html += "</select></td>";
