@@ -114,7 +114,7 @@ async function handleUserSignup(event) {
     var { data, error } = await sb.auth.signUp({
         email: emailInput,
         password: passwordInput,
-        options: { data: { name: nameInput || emailInput.split('@')[0] }, emailRedirectTo: window.location.origin + "/verified.html" }
+        options: { data: { name: nameInput || emailInput.split('@')[0] }, emailRedirectTo: window.location.origin + window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/')) + "/verified.html" }
     });
     
     if (error) {
