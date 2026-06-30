@@ -691,7 +691,9 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
             var cid2 = "cd-" + entry.row_index + "-" + istD2;
             var ti = getTypeInfo(entry.event_type);
 
-            html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2" + (_ctEnded ? " opacity-40 pointer-events-none" : "") + "'>";
+            var _isRunning = ct2 === "RUNNING";
+            html += "<div class='card relative overflow-hidden" + (_ctEnded ? " opacity-50 grayscale" : "") + " border border-ov/50 p-4 flex flex-col gap-2" + (_ctEnded ? " bg-sc" : " bg-scl") + "'>";
+            if (_isRunning) html += "<div class='absolute top-2 right-2 w-2.5 h-2.5 bg-error rounded-full animate-pulse'></div>";
             html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + niceDate + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
             html += "<div class='font-bold text-sm text-on-surface truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</div>";
             html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + (entry.segment_count ? " · " + entry.segment_count + " seg" : "") + "</div>";
@@ -900,16 +902,27 @@ function renderScheduleTable(entries) {
 html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><span class='text-primary'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</span><br><span id='" + cid + "' class='text-[10px] " + ctClass + "'>" + ctDisplay + "</span></td>";
         var ti2 = getTypeInfo(entry.event_type);
         html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
-        html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched || _ctEnded2 ? " disabled" : "") + ">";
-        html += "<option value=''>— Unassigned —</option>";
-        for (var emailKey in userProfiles) {
-            var p = userProfiles[emailKey];
-            var pEmail = p.email || emailKey;
-            var pName = p.name || pEmail.split('@')[0];
-            var sel = (entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === pEmail.toLowerCase()) ? " selected" : "";
-            html += "<option value='" + escHtml(pEmail) + "'" + sel + ">" + escHtml(pName) + " (" + escHtml(pEmail) + ")</option>";
+        html += "<td class='p-3'>";
+        if (_ctEnded2) {
+            var endedName = "—";
+            if (entry.assigned_to) {
+                var endedInfo = getUserInfo(entry.assigned_to);
+                endedName = (endedInfo && endedInfo.name) ? endedInfo.name : entry.assigned_to;
+            }
+            html += "<span class='text-xs text-secondary italic'>" + escHtml(endedName) + "</span>";
+        } else {
+            html += "<select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
+            html += "<option value=''>— Unassigned —</option>";
+            for (var emailKey in userProfiles) {
+                var p = userProfiles[emailKey];
+                var pEmail = p.email || emailKey;
+                var pName = p.name || pEmail.split('@')[0];
+                var sel = (entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === pEmail.toLowerCase()) ? " selected" : "";
+                html += "<option value='" + escHtml(pEmail) + "'" + sel + ">" + escHtml(pName) + " (" + escHtml(pEmail) + ")</option>";
+            }
+            html += "</select>";
         }
-        html += "</select></td>";
+        html += "</td>";
         html += "<td class='p-3 text-center'>";
         if (launched) {
             html += "<span class='text-[11px] font-bold text-success'>Launched</span>";
