@@ -160,10 +160,12 @@ async function deleteUserAccount() {
     await sb.from("notification_reads").delete().eq("user_email", email);
     await sb.from("comment_views").delete().eq("user_email", email);
     await sb.from("ticket_views").delete().eq("user_email", email);
-    // Delete profile
-    await sb.from("profiles").delete().eq("id", uid);
+    // Delete profile row
+    var { error: profileErr } = await sb.from("profiles").delete().eq("id", uid);
+    if (profileErr) { console.error("profile delete error:", profileErr); showToast("Failed to delete profile.", "e"); showGlobalLoader(false); return; }
     // Delete from auth.users via RPC
-    try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e) { /* best-effort */ }
+    var { error: rpcErr } = await sb.rpc("admin_delete_user", { uid: uid });
+    if (rpcErr) { console.error("auth delete error:", rpcErr); showToast("Failed to delete auth account.", "e"); showGlobalLoader(false); return; }
     showGlobalLoader(false);
     showToast("Account deleted. Signing out...", "s", 3000);
     setTimeout(function() { processLogout(); }, 2000);

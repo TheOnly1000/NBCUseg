@@ -276,7 +276,8 @@ async function removeUser(uid, email, name) {
   var { error } = await sb.from("profiles").delete().eq("id", uid);
   if (error) { console.error("removeUser error:", error); st("Failed to remove user.", "e"); return; }
   // Delete from auth.users via RPC
-  try { await sb.rpc("admin_delete_user", { uid: uid }); } catch(e) { /* auth delete best-effort */ }
+  var { error: rpcErr } = await sb.rpc("admin_delete_user", { uid: uid });
+  if (rpcErr) { console.error("auth delete RPC error:", rpcErr); st("Profile deleted but failed to remove auth account: " + rpcErr.message, "e"); return; }
   st("Removed " + (name || email) + " and all associated data", "s");
   await sb.from("audit_logs").insert({
     user_email: "admin@local", user_name: "Admin", action: "user_removed", asset_id: "",
