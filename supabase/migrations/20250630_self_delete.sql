@@ -3,6 +3,12 @@
 -- Run ALL of this in Supabase SQL Editor
 -- =============================================================
 
+-- 0. REPAIR: strip "(Deleted)" from schedule_entries.assigned_to
+-- (previous version broke the Launch button by marking the email field)
+UPDATE public.schedule_entries
+  SET assigned_to = REPLACE(assigned_to, ' (Deleted)', '')
+  WHERE assigned_to LIKE '% (Deleted)';
+
 -- 1. Self-delete RLS policy on profiles (user can delete own row)
 DROP POLICY IF EXISTS "self_delete_profile" ON public.profiles;
 CREATE POLICY "self_delete_profile" ON public.profiles
@@ -10,7 +16,7 @@ CREATE POLICY "self_delete_profile" ON public.profiles
 
 -- 2. SECURITY DEFINER function for a user to delete their own account
 -- Preserves assets, segments, tickets, schedule entries but marks
--- the user's name as (Deleted)
+-- display-name fields with (Deleted). Does NOT touch assigned_to (email field).
 CREATE OR REPLACE FUNCTION public.self_delete_account()
 RETURNS void
 LANGUAGE plpgsql
@@ -52,11 +58,6 @@ BEGIN
     WHERE LOWER(created_by_name) = LOWER(v_name)
        OR LOWER(created_by_email) = LOWER(v_email);
 
-  -- Mark schedule entries
-  UPDATE public.schedule_entries
-    SET assigned_to = v_email || ' (Deleted)'
-    WHERE LOWER(assigned_to) = LOWER(v_email);
-
   -- Delete user's related data (comments, notifications, views)
   DELETE FROM public.ticket_comments WHERE ticket_comments.user_email = v_email;
   DELETE FROM public.notifications WHERE notifications.target_email = v_email;
@@ -73,7 +74,7 @@ END;
 $$;
 
 -- 3. Updated admin_delete_user: allows self-deletion OR admin deletion
--- Same asset/segment/ticket/schedule preservation logic
+-- Same display-name marking logic; does NOT touch assigned_to (email field).
 CREATE OR REPLACE FUNCTION public.admin_delete_user(uid uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -114,11 +115,6 @@ BEGIN
     SET created_by_name = v_name || ' (Deleted)'
     WHERE LOWER(created_by_name) = LOWER(v_name)
        OR LOWER(created_by_email) = LOWER(v_email);
-
-  -- Mark schedule entries
-  UPDATE public.schedule_entries
-    SET assigned_to = v_email || ' (Deleted)'
-    WHERE LOWER(assigned_to) = LOWER(v_email);
 
   -- Delete related data
   DELETE FROM public.ticket_comments WHERE ticket_comments.user_email = v_email;
