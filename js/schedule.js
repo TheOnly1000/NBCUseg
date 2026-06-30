@@ -691,7 +691,7 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
             var cid2 = "cd-" + entry.row_index + "-" + istD2;
             var ti = getTypeInfo(entry.event_type);
 
-            html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2'>";
+            html += "<div class='card bg-scl border border-ov/50 p-4 flex flex-col gap-2" + (_ctEnded ? " opacity-40 pointer-events-none" : "") + "'>";
             html += "<div class='flex items-center justify-between'><span class='text-xs font-bold text-primary'>" + niceDate + " IST</span><span class='text-[10px] font-bold px-2 py-0.5 rounded-full " + (ti.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti.display + "</span></div>";
             html += "<div class='font-bold text-sm text-on-surface truncate' title='" + escHtml(entry.episode_title) + "'>" + escHtml(entry.episode_title) + "</div>";
             html += "<div class='text-xs text-secondary'>S" + escHtml(entry.season_no) + " E" + escHtml(entry.episode_no) + (entry.segment_count ? " · " + entry.segment_count + " seg" : "") + "</div>";
@@ -887,7 +887,7 @@ function renderScheduleTable(entries) {
         var launched = assetExists;
         var istDate = entry.ist_date || entry.schedule_date;
         var cid = "cd-" + entry.row_index + "-" + istDate;
-        html += "<tr class='hover:bg-sclo smooth border-b border-ov/20'>";
+        html += "<tr class='hover:bg-sclo smooth border-b border-ov/20" + (_ctEnded2 ? " opacity-40" : "") + "'>";
         html += "<td class='p-3 pl-4 text-secondary font-mono text-xs'>" + (idx + 1) + "</td>";
         html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(istDate) + "</td>";
         html += "<td class='p-3 text-on-surface'>" + escHtml(entry.episode_title) + "</td>";
@@ -900,7 +900,7 @@ function renderScheduleTable(entries) {
 html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><span class='text-primary'>" + (entry.start_time_ist || entry.start_time_edt) + " - " + (entry.end_time_ist || entry.end_time_edt) + " IST</span><br><span id='" + cid + "' class='text-[10px] " + ctClass + "'>" + ctDisplay + "</span></td>";
         var ti2 = getTypeInfo(entry.event_type);
         html += "<td class='p-3'><span class='text-[11px] font-bold px-2 py-0.5 rounded-full " + (ti2.isLive ? "bg-error/10 text-error" : "bg-primary/10 text-primary") + "'>" + ti2.display + "</span></td>";
-        html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched ? " disabled" : "") + ">";
+        html += "<td class='p-3'><select onchange='updateScheduleAssignment(" + entry.row_index + ", this.value)' class='sel text-xs py-1 w-[130px]'" + (launched || _ctEnded2 ? " disabled" : "") + ">";
         html += "<option value=''>— Unassigned —</option>";
         for (var emailKey in userProfiles) {
             var p = userProfiles[emailKey];
