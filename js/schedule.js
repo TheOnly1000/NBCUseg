@@ -681,10 +681,12 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
         html += "</h3></div>";
 
         groupEntries.forEach(function(entry) {
-            var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === userEmail;
-            var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
-            var _ctEnded = getCountdownText(entry) === "ENDED";
-            var canLaunch = isAssignedToMe && !assetExists && !_ctEnded;
+        var isAssignedToMe = entry.assigned_to && entry.assigned_to.toLowerCase().replace(' (deleted)', '') === userEmail;
+        var assetExists = entry.launched_asset_id ? !!globalSegments[entry.launched_asset_id] : false;
+        var _ctEnded = getCountdownText(entry) === "ENDED";
+        if (isAssignedToMe && !assetExists && _ctEnded) console.log("Launch blocked: countdown ENDED for row", entry.row_index, entry.episode_title, entry.start_time_ist, entry.ist_date);
+        if (isAssignedToMe && !_ctEnded && assetExists) console.log("Launch blocked: asset exists in globalSegments for row", entry.row_index, entry.launched_asset_id);
+        var canLaunch = isAssignedToMe && !assetExists && !_ctEnded;
             var istD2 = entry.ist_date || entry.schedule_date;
             var cid2 = "cd-" + entry.row_index + "-" + istD2;
             var ti = getTypeInfo(entry.event_type);
@@ -927,6 +929,8 @@ html += "<td class='p-3 text-on-surface font-mono text-xs whitespace-nowrap'><sp
             var assignedInfo = getUserInfo(entry.assigned_to);
             if (assignedInfo && assignedInfo.name) assignedName = assignedInfo.name;
             html += "<span class='text-xs text-secondary'>Assigned to " + escHtml(assignedName) + "</span>";
+        } else if (entry.assigned_to) {
+            html += "<span class='text-xs text-secondary italic'>Assigned to you</span>";
         }
         html += "</td>";
         html += "</tr>";
