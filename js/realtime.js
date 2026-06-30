@@ -89,6 +89,9 @@ function subscribeRealTime() {
     profilesChannel = sb.channel("profiles-rt")
         .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, function(payload) {
             loadUserProfiles();
+            if (currentUser && payload.eventType === "DELETE" && payload.old && payload.old.id === currentUser.id) {
+                sb.auth.signOut().then(function() { showToast("Your account has been removed.", "w", 4000); nav("login"); });
+            }
             if (payload.eventType === "UPDATE" && payload.new && currentUser && payload.new.id === currentUser.id && payload.new.banned) {
                 sb.auth.signOut().then(function() { window.location.href = "ban.html"; });
             }

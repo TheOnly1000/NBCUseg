@@ -62,6 +62,13 @@ async function handleUserLogin(event) {
         window.location.href = "ban.html";
         return;
     }
+    if (!banCheck) {
+        showToast("User account not found in system. Contact your admin.", "w", 5000);
+        await sb.auth.signOut();
+        if(loginBtn) { loginBtn.textContent = "Sign In"; loginBtn.disabled = false; }
+        finishProgressBar();
+        return;
+    }
     
     currentUser = { id: data.user.id, email: data.user.email, name: data.user.user_metadata?.name || emailInput.split('@')[0], avatar: data.user.user_metadata?.avatar || "" };
     updateSidebarProfile(); 
@@ -124,7 +131,7 @@ async function handleUserSignup(event) {
         return;
     }
     
-    showToast("Check your email for the confirmation link.", "s", 8000);
+    showToast("Confirmation sent! If using Gmail, check your Spam folder and mark as 'Not spam' to enable the button.", "s", 10000);
     toggleAuthScreens("login");
     if(signupBtn) { signupBtn.textContent = "Submit Request"; signupBtn.disabled = false; }
     finishProgressBar();

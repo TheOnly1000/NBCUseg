@@ -33,6 +33,12 @@ async function initApp() {
                 window.location.href = "ban.html";
                 return;
             }
+            if (!banCheck) {
+                await sb.auth.signOut();
+                showToast("Session expired — user account no longer exists.", "w", 4000);
+                nav("login");
+                return;
+            }
             updateSidebarProfile();
             var themeMsg = document.getElementById("theme-username");
             if (themeMsg) themeMsg.textContent = currentUser.name;
