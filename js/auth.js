@@ -165,7 +165,7 @@ async function handleUserSignup(event) {
     }
 }
 
-function processLogout() {
+function processLogout(reason) {
     sb.auth.signOut();
     if (segChannel) sb.removeChannel(segChannel);
     if (notifChannel) sb.removeChannel(notifChannel);
@@ -185,5 +185,5 @@ function processLogout() {
     var grid = document.getElementById("segmentGrid");
     if(grid) grid.innerHTML = "";
     clearInterval(autoSaveTimer);
-    nav("login");
+    window.location.href = reason === "deleted" ? "./signout.html?deleted=1" : "./signout.html";
 }

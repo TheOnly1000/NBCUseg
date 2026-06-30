@@ -152,21 +152,16 @@ function getUserAvatarHtml(email, name, size) {
 
 async function deleteUserAccount() {
     showGlobalLoader(true);
-    var email = currentUser.email || "";
-    var uid = currentUser.id;
-    // Clean up user's data (keep segments, assets, tickets, schedule)
-    await sb.from("ticket_comments").delete().eq("user_email", email);
-    await sb.from("notifications").delete().eq("target_email", email);
-    await sb.from("notification_reads").delete().eq("user_email", email);
-    await sb.from("comment_views").delete().eq("user_email", email);
-    await sb.from("ticket_views").delete().eq("user_email", email);
-    // Delete profile row
-    var { error: profileErr } = await sb.from("profiles").delete().eq("id", uid);
-    if (profileErr) { console.error("profile delete error:", profileErr); showToast("Failed to delete profile.", "e"); showGlobalLoader(false); return; }
-    // Delete from auth.users via RPC
-    var { error: rpcErr } = await sb.rpc("admin_delete_user", { uid: uid });
-    if (rpcErr) { console.error("auth delete error:", rpcErr); showToast("Failed to delete auth account.", "e"); showGlobalLoader(false); return; }
+    var { error } = await sb.rpc("self_delete_account");
     showGlobalLoader(false);
-    showToast("Account deleted. Signing out...", "s", 3000);
-    setTimeout(function() { processLogout(); }, 2000);
+    if (error) {
+        console.error("delete account error:", error);
+        if (error.message && error.message.includes("does not exist")) {
+            showToast("Database function not installed. Run the SQL migration in Supabase SQL Editor.", "e", 8000);
+        } else {
+            showToast("Failed to delete account: " + error.message, "e", 6000);
+        }
+        return;
+    }
+    processLogout("deleted");
 }

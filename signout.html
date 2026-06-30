@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signing Out – NBCU Segmentor</title>
+<style>
+:root{--primary:#003ec7;--bg:#f8fafc;--card:#ffffff;--border:#e2e8f0;--text:#0f172a;--text2:#64748b;--success:#16a34a;--error:#dc2626}
+*,*::before,*::after{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px;display:flex;align-items:center;justify-content:center;min-height:100vh;-webkit-font-smoothing:antialiased}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:48px 40px;max-width:400px;width:100%;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06)}
+.icon-circle{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px}
+.icon-circle.deleted{background:#fee2e2}
+.icon-circle.logout{background:#e0e7ff}
+.icon-circle svg{width:36px;height:36px}
+h1{font-size:24px;font-weight:800;margin:0 0 8px}
+p{font-size:14px;color:var(--text2);margin:0 0 24px;line-height:1.5}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-bar{width:100%;height:4px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:20px}
+.progress-bar-fill{height:100%;background:var(--primary);border-radius:4px;animation:shrink 5s linear forwards;transform-origin:left center}
+@keyframes shrink{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+</style>
+</head>
+<body>
+<div class="card">
+<div id="deleted-icon" class="icon-circle deleted" style="display:none">
+<svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+</svg>
+</div>
+<div id="logout-icon" class="icon-circle logout">
+<svg viewBox="0 0 24 24" fill="none" stroke="#003ec7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+</svg>
+</div>
+<h1 id="title">Signing Out</h1>
+<p id="message">You have been signed out. Redirecting...</p>
+<div id="spinner"><span class="spinner"></span></div>
+<div class="progress-bar"><div class="progress-bar-fill"></div></div>
+</div>
+<script>
+var params = new URLSearchParams(window.location.search);
+var isDeleted = params.get("deleted") === "1";
+if (isDeleted) {
+  document.getElementById("deleted-icon").style.display = "flex";
+  document.getElementById("logout-icon").style.display = "none";
+  document.getElementById("title").textContent = "Account Deleted";
+  document.getElementById("message").textContent = "Your account and all associated data have been permanently deleted. Redirecting...";
+}
+setTimeout(function() { window.location.href = "./index.html"; }, 5000);
+</script>
+</body>
+</html>
