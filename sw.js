@@ -1,10 +1,11 @@
-var CACHE_NAME = "seg-v2";
+var CACHE_NAME = "seg-v3";
 var URLS_TO_CACHE = [
   "/",
   "/index.html",
   "/manifest.json",
   "/ban.html",
   "/verified.html",
+  "/signout.html",
   "/css/styles.css",
   "/assets/icon-192.svg",
   "/assets/icon-512.svg",
