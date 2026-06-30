@@ -889,7 +889,7 @@ function renderScheduleTable(entries) {
         var launched = assetExists;
         var istDate = entry.ist_date || entry.schedule_date;
         var cid = "cd-" + entry.row_index + "-" + istDate;
-        html += "<tr class='hover:bg-sclo smooth border-b border-ov/20" + (_ctEnded2 ? " opacity-40" : "") + "'>";
+        html += "<tr class='hover:bg-sclo smooth border-b border-ov/20" + (_ctEnded2 ? " opacity-80" : "") + "'>";
         html += "<td class='p-3 pl-4 text-secondary font-mono text-xs'>" + (idx + 1) + "</td>";
         html += "<td class='p-3 text-on-surface font-medium whitespace-nowrap'>" + formatDateShort(istDate) + "</td>";
         html += "<td class='p-3 text-on-surface'>" + escHtml(entry.episode_title) + "</td>";
