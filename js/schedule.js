@@ -553,75 +553,32 @@ function launchFromSchedule(rowIndex) {
         return;
     }
 
-    // Auto-create the asset directly without showing a modal
     var titleVal = entry.episode_title || entry.series_name || "New Event";
     var typeVal = entry.event_type || "Record";
     var dateVal = entry.schedule_date || new Date().toISOString().split("T")[0];
-    var ownerName = currentUser.name && currentUser.name.trim() !== "" ? currentUser.name : (currentUser.email || "").split('@')[0];
-    var nowISO = new Date().toISOString();
     var tcInVal = entry.start_time_ist ? entry.start_time_ist + ":00" : "";
     var tcOutVal = entry.end_time_ist ? entry.end_time_ist + ":00" : "";
     var expectedDur = (tcInVal && tcOutVal) ? tcStr(Math.max(0, toSec(tcOutVal) - toSec(tcInVal))) : "00:30:00";
     var expectedSeg = (entry.segment_count && entry.segment_count !== "") ? parseInt(entry.segment_count) || 0 : 4;
 
-    showGlobalLoader(true);
+    _pendingScheduleLaunch = {
+        assetId: assetId,
+        rowIndex: rowIndex,
+        entry: entry,
+        startTimeIst: entry.start_time_ist,
+        endTimeIst: entry.end_time_ist,
+        expectedDur: expectedDur,
+        expectedSeg: expectedSeg
+    };
 
-    sb.from("segments").insert({
-        year: new Date(dateVal).getFullYear() || new Date().getFullYear(),
-        date: dateVal,
-        asset_id: assetId,
-        title: titleVal,
-        type: typeVal,
-        seg: "A",
-        tc_in: "",
-        tc_out: "",
-        glitch: "",
-        comment: "",
-        duration: "",
-        breaks: "",
-        mcr_fmt: "",
-        created_by: ownerName,
-        status: "In Progress",
-        handover_by: "",
-        handover_to: "",
-        handover_at: null,
-        locked_by: currentUser.email,
-        locked_at: nowISO
-    }).then(function(result) {
-        if (result.error) {
-            console.error("launchFromSchedule error:", result.error); showToast("Failed to launch asset.", "e");
-            showGlobalLoader(false);
-            return;
-        }
+    document.getElementById("na-id").value = assetId;
+    document.getElementById("na-title").value = titleVal;
+    document.getElementById("na-type").value = typeVal;
+    document.getElementById("na-date").value = dateVal;
+    document.getElementById("na-exp-dur").value = expectedDur;
+    document.getElementById("na-exp-seg").value = expectedSeg;
 
-        fetchThumbnailForTitle(titleVal);
-
-        entry.launched_asset_id = assetId;
-        entry.status = "launched";
-        sb.from("schedule_entries")
-            .update({ launched_asset_id: assetId, status: "launched", updated_at: nowISO })
-            .eq("row_index", rowIndex)
-            .eq("schedule_date", entry.schedule_date)
-            .then(function() {
-                renderSchedule();
-                renderDash();
-            });
-
-        // Add to globalSegments in-memory (skip full DB reload)
-        var rowArr = [dateVal, assetId, titleVal, typeVal, "A", "", "", "", "", "", "", "", ownerName, "In Progress", "", "", "", currentUser.email, nowISO, {}, "", "", "", "", "", "", ""];
-        if (!globalSegments[assetId]) globalSegments[assetId] = { id: assetId, title: titleVal, type: typeVal, date: dateVal, year: new Date(dateVal).getFullYear() || "", rows: [] };
-        globalSegments[assetId].rows.push(rowArr);
-
-        showGlobalLoader(false);
-        loadToEditor(assetId).then(function(){
-            var expDurEl = document.getElementById("metaExpDur");
-            if (expDurEl) expDurEl.value = expectedDur;
-            var expSegEl = document.getElementById("metaExpSeg");
-            if (expSegEl) expSegEl.value = expectedSeg;
-            calcGrid();
-        });
-        showToast(assetId + " launched from schedule. Duration: " + expectedDur + ", Segments: " + expectedSeg + ".", "s");
-    });
+    openModal("m-newasset");
 }
 
 function renderDashUpcoming() {

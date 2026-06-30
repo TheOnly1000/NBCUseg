@@ -855,6 +855,8 @@ async function createNewAsset() {
     const titleVal = document.getElementById("na-title")?.value.trim() || "New Event";
     const typeVal = document.getElementById("na-type")?.value || "Record";
     const dateVal = document.getElementById("na-date")?.value || new Date().toISOString().split("T")[0];
+    const expDurVal = document.getElementById("na-exp-dur")?.value || "00:30:00";
+    const expSegVal = parseInt(document.getElementById("na-exp-seg")?.value) || 4;
     
     if (!idVal) {
         showToast("Asset ID is required.", "w");
@@ -876,7 +878,7 @@ async function createNewAsset() {
     var ownerName = currentUser.name && currentUser.name.trim() !== "" ? currentUser.name : (currentUser.email || "").split('@')[0];
     var nowISO = new Date().toISOString();
     var { error: insErr } = await sb.from("segments").insert({
-        year: new Date().getFullYear(), date: dateVal, asset_id: idVal, title: titleVal, type: typeVal,
+        year: new Date(dateVal).getFullYear() || new Date().getFullYear(), date: dateVal, asset_id: idVal, title: titleVal, type: typeVal,
         seg: "A", tc_in: "", tc_out: "", glitch: "", comment: "", duration: "", breaks: "", mcr_fmt: "",
         created_by: ownerName, status: "In Progress",
         handover_by: "", handover_to: "", handover_at: null,
@@ -892,7 +894,10 @@ async function createNewAsset() {
     // Fire-and-forget thumbnail fetch
     fetchThumbnailForTitle(titleVal);
     
-    await loadAllSegments();
+    // Add to globalSegments in-memory (skip full DB reload)
+    var rowArr = [dateVal, idVal, titleVal, typeVal, "A", "", "", "", "", "", "", "", ownerName, "In Progress", "", "", "", currentUser.email, nowISO, {}, "", "", "", "", "", "", ""];
+    if (!globalSegments[idVal]) globalSegments[idVal] = { id: idVal, title: titleVal, type: typeVal, date: dateVal, year: new Date(dateVal).getFullYear() || "", rows: [] };
+    globalSegments[idVal].rows.push(rowArr);
     
     showGlobalLoader(false);
     
@@ -900,6 +905,8 @@ async function createNewAsset() {
     if(document.getElementById("metaTitle")) document.getElementById("metaTitle").value = titleVal; 
     if(document.getElementById("metaType")) document.getElementById("metaType").value = typeVal; 
     if(document.getElementById("metaDate")) document.getElementById("metaDate").value = dateVal;
+    if(document.getElementById("metaExpDur")) document.getElementById("metaExpDur").value = expDurVal;
+    if(document.getElementById("metaExpSeg")) document.getElementById("metaExpSeg").value = expSegVal;
     
     const grid = document.getElementById("segmentGrid");
     if(grid) grid.innerHTML = "";
@@ -927,8 +934,8 @@ async function createNewAsset() {
             var firstSeg = segRows[0];
             var tcInInput = firstSeg.querySelector(".tc-in");
             var tcOutInput = firstSeg.querySelector(".tc-out");
-            var parsedIn = time12to24(psl.startTimeEdt);
-            var parsedOut = time12to24(psl.endTimeEdt);
+            var parsedIn = time12to24(psl.startTimeIst);
+            var parsedOut = time12to24(psl.endTimeIst);
             if (tcInInput && parsedIn) {
                 tcInInput.value = parsedIn + ":00";
             }

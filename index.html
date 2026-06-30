@@ -109,6 +109,10 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
         <div><label class="lbl">Type</label><select id="na-type" class="sel w-full"><option>Record</option><option>Live</option></select></div>
         <div><label class="lbl">Date</label><input id="na-date" type="date" class="inp w-full"></div>
       </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div><label class="lbl text-primary">Exp. Segments</label><input id="na-exp-seg" type="number" value="4" class="inp w-full"></div>
+        <div><label class="lbl text-primary">Exp. Duration</label><input id="na-exp-dur" type="text" value="00:30:00" oninput="fmtIn(this)" class="inp w-full font-mono"></div>
+      </div>
       <button onclick="createNewAsset()" class="w-full btn-primary flex items-center justify-center gap-2 mt-2 ripple-host"><span class="ms text-[17px]">add_circle</span> Create &amp; Lock</button>
     </div>
   </div>
