@@ -728,15 +728,13 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
 var _dashExpandMode = "today";
 
 function toggleDashExpand() {
-    if (_dashExpandMode === "today") _dashExpandMode = "3days";
-    else if (_dashExpandMode === "3days") _dashExpandMode = "all";
-    else _dashExpandMode = "today";
+    _dashExpandMode = _dashExpandMode === "today" ? "all" : "today";
     renderDashUpcoming();
 
     var btn = document.getElementById("dash-expand-btn");
     if (btn) {
-        var labels = { today: "Today", "3days": "3 Days", all: "Full" };
-        btn.innerHTML = '<span class="ms text-[14px]">expand_content</span>' + labels[_dashExpandMode];
+        var labels = { today: "Show All", all: "Today" };
+        btn.innerHTML = '<span class="ms text-[14px]">' + (_dashExpandMode === "today" ? "expand_content" : "collapse_content") + '</span>' + labels[_dashExpandMode];
     }
 }
 
@@ -746,19 +744,7 @@ function renderDashUpcomingCards(entries, userEmail) {
     if (!upcomingSection || !upcomingCards) return;
 
     var today = todayEdt();
-    var filtered = entries;
-    if (_dashExpandMode === "today") {
-        filtered = entries.filter(function(e) { return e.schedule_date === today; });
-    } else if (_dashExpandMode === "3days") {
-        var threeDays = [];
-        var d = new Date(today);
-        for (var i = 0; i < 3; i++) {
-            var ds = d.toISOString().slice(0, 10);
-            threeDays.push(ds);
-            d.setDate(d.getDate() + 1);
-        }
-        filtered = entries.filter(function(e) { return threeDays.indexOf(e.schedule_date) >= 0; });
-    }
+    var filtered = _dashExpandMode === "today" ? entries.filter(function(e) { return e.schedule_date === today; }) : entries;
 
     if (filtered.length > 0) {
         upcomingSection.style.display = "block";
