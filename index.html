@@ -540,7 +540,10 @@ tailwind.config={darkMode:"class",theme:{extend:{colors:{
             </div>
             <div id="dgrid" class="lg-grid"></div>
             <div id="dash-upcoming-events" class="mt-8" style="display:none">
-              <h2 class="font-bold text-[16px] text-on-surface mb-3 flex items-center gap-2"><span class="ms text-[20px] text-primary">upcoming</span>Upcoming Events</h2>
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="font-bold text-[16px] text-on-surface flex items-center gap-2"><span class="ms text-[20px] text-primary">upcoming</span>Upcoming Events</h2>
+                <button id="dash-expand-btn" onclick="toggleDashExpand()" class="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"><span class="ms text-[14px]">expand_content</span>Expand</button>
+              </div>
               <div id="dash-upcoming-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
             </div>
             <div id="dash-recent-activity" class="mt-8" style="display:none">

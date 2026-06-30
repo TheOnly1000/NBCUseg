@@ -725,14 +725,44 @@ function renderUpcomingCardsGrouped(entries, containerId, userEmail) {
     return { upcomingToday: upcomingToday, totalUpcoming: totalUpcoming };
 }
 
+var _dashExpandMode = "today";
+
+function toggleDashExpand() {
+    if (_dashExpandMode === "today") _dashExpandMode = "3days";
+    else if (_dashExpandMode === "3days") _dashExpandMode = "all";
+    else _dashExpandMode = "today";
+    renderDashUpcoming();
+
+    var btn = document.getElementById("dash-expand-btn");
+    if (btn) {
+        var labels = { today: "Today", "3days": "3 Days", all: "Full" };
+        btn.innerHTML = '<span class="ms text-[14px]">expand_content</span>' + labels[_dashExpandMode];
+    }
+}
+
 function renderDashUpcomingCards(entries, userEmail) {
     var upcomingSection = document.getElementById("dash-upcoming-events");
     var upcomingCards = document.getElementById("dash-upcoming-cards");
     if (!upcomingSection || !upcomingCards) return;
 
-    if (entries.length > 0) {
+    var today = todayEdt();
+    var filtered = entries;
+    if (_dashExpandMode === "today") {
+        filtered = entries.filter(function(e) { return e.schedule_date === today; });
+    } else if (_dashExpandMode === "3days") {
+        var threeDays = [];
+        var d = new Date(today);
+        for (var i = 0; i < 3; i++) {
+            var ds = d.toISOString().slice(0, 10);
+            threeDays.push(ds);
+            d.setDate(d.getDate() + 1);
+        }
+        filtered = entries.filter(function(e) { return threeDays.indexOf(e.schedule_date) >= 0; });
+    }
+
+    if (filtered.length > 0) {
         upcomingSection.style.display = "block";
-        renderUpcomingCardsGrouped(entries, "dash-upcoming-cards", userEmail);
+        renderUpcomingCardsGrouped(filtered, "dash-upcoming-cards", userEmail);
     } else {
         upcomingSection.style.display = "none";
     }
