@@ -9,7 +9,8 @@ CREATE POLICY "self_delete_profile" ON public.profiles
   FOR DELETE USING (auth.uid() = id);
 
 -- 2. SECURITY DEFINER function for a user to delete their own account
--- Deletes related data, profile row, AND auth.users entry
+-- Preserves assets, segments, tickets, schedule entries but marks
+-- the user's name as (Deleted)
 CREATE OR REPLACE FUNCTION public.self_delete_account()
 RETURNS void
 LANGUAGE plpgsql
@@ -18,14 +19,45 @@ SET search_path = public
 AS $$
 DECLARE
   v_email text;
+  v_name text;
 BEGIN
-  -- Get current user's email from auth (not public.profiles, which we're about to delete)
-  SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
+  -- Get current user's email and display name from auth
+  SELECT email,
+    COALESCE(raw_user_meta_data->>'name', SPLIT_PART(email, '@', 1))
+  INTO v_email, v_name
+  FROM auth.users WHERE id = auth.uid();
   IF v_email IS NULL THEN
     RAISE EXCEPTION 'Session user not found in auth.users';
   END IF;
 
-  -- Delete user's related data
+  -- Mark assets (created_by stores display name or email)
+  UPDATE public.assets
+    SET created_by = v_name || ' (Deleted)'
+    WHERE LOWER(created_by) IN (LOWER(v_name), LOWER(v_email));
+
+  -- Mark segments and release locks
+  UPDATE public.segments
+    SET created_by = v_name || ' (Deleted)',
+        locked_by = NULL,
+        locked_at = NULL
+    WHERE LOWER(created_by) IN (LOWER(v_name), LOWER(v_email));
+  UPDATE public.segments
+    SET locked_by = NULL,
+        locked_at = NULL
+    WHERE LOWER(locked_by) = LOWER(v_email);
+
+  -- Mark tickets
+  UPDATE public.tickets
+    SET created_by_name = v_name || ' (Deleted)'
+    WHERE LOWER(created_by_name) = LOWER(v_name)
+       OR LOWER(created_by_email) = LOWER(v_email);
+
+  -- Mark schedule entries
+  UPDATE public.schedule_entries
+    SET assigned_to = v_email || ' (Deleted)'
+    WHERE LOWER(assigned_to) = LOWER(v_email);
+
+  -- Delete user's related data (comments, notifications, views)
   DELETE FROM public.ticket_comments WHERE ticket_comments.user_email = v_email;
   DELETE FROM public.notifications WHERE notifications.target_email = v_email;
   DELETE FROM public.notification_reads WHERE notification_reads.user_email = v_email;
@@ -41,7 +73,7 @@ END;
 $$;
 
 -- 3. Updated admin_delete_user: allows self-deletion OR admin deletion
--- Admins can pass any uid; regular users can only delete themselves
+-- Same asset/segment/ticket/schedule preservation logic
 CREATE OR REPLACE FUNCTION public.admin_delete_user(uid uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -50,40 +82,55 @@ SET search_path = public
 AS $$
 DECLARE
   v_email text;
+  v_name text;
 BEGIN
-  -- Get target email
-  SELECT email INTO v_email FROM auth.users WHERE id = uid;
+  -- Get target email and display name
+  SELECT email,
+    COALESCE(raw_user_meta_data->>'name', SPLIT_PART(email, '@', 1))
+  INTO v_email, v_name
+  FROM auth.users WHERE id = uid;
   IF v_email IS NULL THEN
     RAISE EXCEPTION 'Target user not found in auth.users';
   END IF;
 
-  -- Self-deletion allowed
-  IF auth.uid() = uid THEN
-    -- Delete related data
-    DELETE FROM public.ticket_comments WHERE ticket_comments.user_email = v_email;
-    DELETE FROM public.notifications WHERE notifications.target_email = v_email;
-    DELETE FROM public.notification_reads WHERE notification_reads.user_email = v_email;
-    DELETE FROM public.comment_views WHERE comment_views.user_email = v_email;
-    DELETE FROM public.ticket_views WHERE ticket_views.user_email = v_email;
-    -- Delete profile
-    DELETE FROM public.profiles WHERE id = uid;
-    -- Delete from auth.users
-    DELETE FROM auth.users WHERE id = uid;
-    RETURN;
-  END IF;
+  -- Mark assets
+  UPDATE public.assets
+    SET created_by = v_name || ' (Deleted)'
+    WHERE LOWER(created_by) IN (LOWER(v_name), LOWER(v_email));
 
-  -- Admin deletion of any user
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
-    DELETE FROM public.ticket_comments WHERE ticket_comments.user_email = v_email;
-    DELETE FROM public.notifications WHERE notifications.target_email = v_email;
-    DELETE FROM public.notification_reads WHERE notification_reads.user_email = v_email;
-    DELETE FROM public.comment_views WHERE comment_views.user_email = v_email;
-    DELETE FROM public.ticket_views WHERE ticket_views.user_email = v_email;
-    DELETE FROM public.profiles WHERE id = uid;
-    DELETE FROM auth.users WHERE id = uid;
-    RETURN;
-  END IF;
+  -- Mark segments and release locks
+  UPDATE public.segments
+    SET created_by = v_name || ' (Deleted)',
+        locked_by = NULL,
+        locked_at = NULL
+    WHERE LOWER(created_by) IN (LOWER(v_name), LOWER(v_email));
+  UPDATE public.segments
+    SET locked_by = NULL,
+        locked_at = NULL
+    WHERE LOWER(locked_by) = LOWER(v_email);
 
-  RAISE EXCEPTION 'Only admins can delete other users';
+  -- Mark tickets
+  UPDATE public.tickets
+    SET created_by_name = v_name || ' (Deleted)'
+    WHERE LOWER(created_by_name) = LOWER(v_name)
+       OR LOWER(created_by_email) = LOWER(v_email);
+
+  -- Mark schedule entries
+  UPDATE public.schedule_entries
+    SET assigned_to = v_email || ' (Deleted)'
+    WHERE LOWER(assigned_to) = LOWER(v_email);
+
+  -- Delete related data
+  DELETE FROM public.ticket_comments WHERE ticket_comments.user_email = v_email;
+  DELETE FROM public.notifications WHERE notifications.target_email = v_email;
+  DELETE FROM public.notification_reads WHERE notification_reads.user_email = v_email;
+  DELETE FROM public.comment_views WHERE comment_views.user_email = v_email;
+  DELETE FROM public.ticket_views WHERE ticket_views.user_email = v_email;
+
+  -- Delete profile
+  DELETE FROM public.profiles WHERE id = uid;
+
+  -- Delete from auth.users
+  DELETE FROM auth.users WHERE id = uid;
 END;
 $$;
