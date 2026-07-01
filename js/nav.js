@@ -354,6 +354,7 @@ function nav(viewId) {
     }
     if (viewId === "dashboard") {
         if (Object.keys(globalSegments||{}).length) renderDash();
+        else loadAllSegments();
     }
     if (viewId === "assets") {
         if (Object.keys(globalSegments||{}).length) renderAssets();

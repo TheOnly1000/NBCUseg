@@ -894,7 +894,16 @@ async function createNewAsset() {
     // Fire-and-forget thumbnail fetch
     fetchThumbnailForTitle(titleVal);
     
-    await loadAllSegments();
+    try { await loadAllSegments(); } catch(e) {
+        console.error("loadAllSegments failed:", e);
+        // Fallback: add the new asset directly in memory
+        var fallbackRow = [dateVal, idVal, titleVal, typeVal, "A", "", "", "", "", "", "", "", ownerName, "In Progress", "", "", "", currentUser.email, nowISO, {}, "", "", "", "", "", "", ""];
+        if (!globalSegments[idVal]) globalSegments[idVal] = { id: idVal, title: titleVal, type: typeVal, date: dateVal, year: new Date(dateVal).getFullYear() || "", rows: [] };
+        globalSegments[idVal].rows.push(fallbackRow);
+        renderDash();
+        renderAssets();
+        buildFilters();
+    }
     
     showGlobalLoader(false);
     
