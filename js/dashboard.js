@@ -187,7 +187,7 @@ function renderLiveNow() {
             '<div class="flex-1 min-w-0"><div class="font-bold text-sm truncate">' + sanitizeHTML(a.title) + '</div>' +
             '<div class="text-[10px] font-mono text-secondary mt-0.5">' + sanitizeHTML(a.id) + '</div>' +
             '<div class="flex items-center gap-2 mt-2"><span class="text-[10px] font-bold px-1.5 py-0.5 rounded ' + (a.isLive?"bg-error text-white":"bg-pf text-primary") + '">' + (a.isLive?"LIVE":"REC") + '</span>' +
-            getUserAvatarHtml(lockedBy, a.lockedByName, 18) +
+            getUserAvatarHtml(a.lockedBy, a.lockedByName, 18) +
             '<span class="text-[11px] text-secondary font-medium">' + sanitizeHTML(a.lockedByName) + '</span></div></div>' +
             '<div class="text-right flex-shrink-0"><div class="font-mono font-bold text-[16px] text-primary">' + ts + '</div><div class="text-[9px] text-secondary uppercase tracking-wider">editing</div></div></div>';
     }).join("");
